@@ -1,0 +1,194 @@
+{
+  "sdk": {
+    "repo": "https://github.com/polarofficial/polar-ble-sdk",
+    "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7"
+  },
+  "heartRate": [
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "hr format uint8"
+      },
+      "hex": "00ff",
+      "expect": {
+        "hr": 255
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "hr format uint8"
+      },
+      "hex": "007f",
+      "expect": {
+        "hr": 127
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "hr format uint16"
+      },
+      "hex": "018080",
+      "expect": {
+        "hr": 32896
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "hr format uint16"
+      },
+      "hex": "017f7f",
+      "expect": {
+        "hr": 32639
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "sensor contact supported"
+      },
+      "hex": "0600",
+      "expect": {
+        "sensorContact": true,
+        "sensorContactSupported": true
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "sensor contact supported"
+      },
+      "hex": "0400",
+      "expect": {
+        "sensorContact": false,
+        "sensorContactSupported": true
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "sensor contact not supported"
+      },
+      "hex": "0200",
+      "expect": {
+        "sensorContactSupported": false
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "sensor contact not supported"
+      },
+      "hex": "0000",
+      "expect": {
+        "sensorContactSupported": false
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "energy expended"
+      },
+      "hex": "090000ffff",
+      "expect": {
+        "hr": 0,
+        "energyKj": 65535
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "energy expended"
+      },
+      "hex": "08007f80",
+      "expect": {
+        "hr": 0,
+        "energyKj": 32895
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "rr interval"
+      },
+      "hex": "1000ffff",
+      "expect": {
+        "hr": 0,
+        "rrPresent": true,
+        "rrs1024": [65535],
+        "rrsMs": [63999]
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "rr interval"
+      },
+      "hex": "110000ffff7f80",
+      "expect": {
+        "hr": 0,
+        "rrPresent": true,
+        "rrs1024": [65535, 32895],
+        "rrsMs": [63999, 32124]
+      }
+    },
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleHrClientTest.kt",
+        "test": "rr interval"
+      },
+      "hex": "1100000000",
+      "expect": {
+        "hr": 0,
+        "rrPresent": true,
+        "rrs1024": [0],
+        "rrsMs": [0]
+      }
+    }
+  ],
+  "battery": [
+    {
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/BleBattClientTest.kt",
+        "test": "batteryNotificationReceived"
+      },
+      "note": "values 100, 80, 255, 0 sent; the SDK emits 100, 80, 0 (255 is dropped)",
+      "cases": [
+        ["64", 100, true],
+        ["50", 80, true],
+        ["ff", 255, false],
+        ["00", 0, true]
+      ]
+    }
+  ]
+}

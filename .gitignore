@@ -1,0 +1,7 @@
+node_modules/
+test-results/
+playwright-report/
+tests/.out/
+*.crswap
+.DS_Store
+Thumbs.db

@@ -1,0 +1,111 @@
+{
+  "sdk": {
+    "repo": "https://github.com/polarofficial/polar-ble-sdk",
+    "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7"
+  },
+  "vectors": [
+    {
+      "name": "reference sample, 16-bit signed",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientParsersTest.kt",
+        "test": "parse reference sample when resolution16 and type is unsigned int"
+      },
+      "catches": "16-bit sign extension of references (0x8000 = -32768)",
+      "hex": "ffff0000ff7f0080",
+      "channels": 4,
+      "refBits": 16,
+      "refSigned": true,
+      "expect": {
+        "count": 1,
+        "samples": {
+          "0": [-1, 0, 32767, -32768]
+        }
+      }
+    },
+    {
+      "name": "reference sample, 32-bit float bits",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientParsersTest.kt",
+        "test": "parse reference sample when resolution32 and type is decimal IEEE 754"
+      },
+      "catches": "float references kept as raw bits",
+      "hex": "00000000ffffffff00000080",
+      "channels": 3,
+      "refBits": 32,
+      "refSigned": false,
+      "expect": {
+        "count": 1,
+        "samples": {
+          "0": [0, -1, -2147483648]
+        }
+      }
+    },
+    {
+      "name": "28- and 32-bit blocks, real vector 1",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientParsersTest.kt",
+        "test": "test_parseDeltaFrameAllSamples_withResolution32_realVector1"
+      },
+      "catches": "4 blocks with widths 28 and 32",
+      "hex": "0000803f000020410000a0411c060000a001000008cdccec0d000008cdccec3d33331acdccec3d33331a0000c03033331a0000c0a09999da0000c0a09999da6666a6a19999da6666a60100000e20036666a6010000e000426c450e0000e000426c450e2bf8ed21000060fdbe93baf0939b4ccf1c060000a001000008cdccec0d000008cdccec3d33331acdccec3d33331a0000c03033331a0000c0a09999da0000c0a09999da6666a6a19999da6666a60100000e20036666a6010000e000426c450e0000e000426c450e2bf8ed21000060fdbe93baf0939b4ccf",
+      "channels": 3,
+      "refBits": 32,
+      "refSigned": false,
+      "expect": {
+        "count": 19,
+        "samples": {
+          "0": [1065353216, 1092616192, 1101004800],
+          "1": [1092616192, 1101004800, 1066192077]
+        }
+      }
+    },
+    {
+      "name": "32-bit block, 17 samples",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientParsersTest.kt",
+        "test": "test_parseDeltaFrameAllSamples_withResolution32"
+      },
+      "catches": "32-bit deltas and Int32 wrap-around in accumulation",
+      "hex": "02000000193299e900dafeff2011173299e9e7a7651638db0646e7a7651638db064673413bb87a260401c90aff597707d13287bf019f213e0d91e50176ad213e0d91e50176ad920138cde50176ad920138cd00548487920138cd0054848778cbee400054848778cbee40f1decc8b78cbee40f1decc8b173299e9f1decc8b173299e9e7a76516173299e9e7a7651638db0646e7a7651638db064673413bb87a260401c90aff597707d13287bf019f213e0d91e50176ad213e0d91e50176ad920138cde50176ad920138cd00548487920138cd0054848778cbee40",
+      "channels": 3,
+      "refBits": 32,
+      "refSigned": false,
+      "expect": {
+        "count": 18,
+        "samples": {
+          "0": [2, -375836135, -75264],
+          "1": [-375836135, -75264, 1174779192]
+        }
+      }
+    },
+    {
+      "name": "nine 3/4-bit blocks",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientParsersTest.kt",
+        "test": "test_parseDeltaFrameAllSamples_multipleDeltas"
+      },
+      "catches": "block offsets with partial last bytes; 140 samples",
+      "hex": "c9ff12001100030941fe2b0f9c0bbf15004f00041ef1ef00f0c123e4edf4d1f1f1f5ff22de3100f1fe21021f0e2b1f00e220000e02e11e20fff1f102c5d002e0e102030a312efbba902baa0e23409e030414e3eff30f021f01e00f049e13e2d004e222e2c20e200f2002fe000f1c32ee030a890007087c00ce2fe83a9e03041e010011194f002f12fd13ff0e100000f1c012e4ef21000001f1ffff0210102b510b4e31fc2ebf3114ec0e2f52ef030a069e040e02a888eee0079a00040a1f211e4e2efec6c002ef030102ee11030af8130000f040bfa5e7007600",
+      "channels": 3,
+      "refBits": 16,
+      "refSigned": true,
+      "expect": {
+        "count": 140,
+        "samples": {
+          "0": [-55, 18, 17],
+          "1": [-54, 18, 18]
+        }
+      }
+    }
+  ]
+}

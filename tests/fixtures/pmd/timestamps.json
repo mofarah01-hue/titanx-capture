@@ -1,0 +1,107 @@
+{
+  "sdk": {
+    "repo": "https://github.com/polarofficial/polar-ble-sdk",
+    "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7"
+  },
+  "vectors": [
+    {
+      "name": "first frame, no sample rate",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PmdTimeStampUtilsTest.kt",
+        "test": "assert on invalid input, both sample rate and timestamp are zero"
+      },
+      "prevNs": "0",
+      "frameNs": "100000",
+      "count": 100,
+      "sampleRateHz": 0,
+      "throws": "sample rate"
+    },
+    {
+      "name": "first frame, would be negative",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PmdTimeStampUtilsTest.kt",
+        "test": "assert on invalid input, time stamps are negative"
+      },
+      "prevNs": "0",
+      "frameNs": "100000",
+      "count": 100,
+      "sampleRateHz": 52,
+      "throws": "negative"
+    },
+    {
+      "name": "from sample rate",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PmdTimeStampUtilsTest.kt",
+        "test": "samples time stamps based on frequency"
+      },
+      "prevNs": "0",
+      "frameNs": "10000000000",
+      "count": 10,
+      "sampleRateHz": 1,
+      "expect": ["1000000000", "2000000000", "3000000000", "4000000000", "5000000000", "6000000000", "7000000000", "8000000000", "9000000000", "10000000000"]
+    },
+    {
+      "name": "from sample rate, one sample",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PmdTimeStampUtilsTest.kt",
+        "test": "samples time based on frequency only one sample"
+      },
+      "prevNs": "0",
+      "frameNs": "1000000000",
+      "count": 1,
+      "sampleRateHz": 1,
+      "expect": ["1000000000"]
+    },
+    {
+      "name": "from previous timestamp",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PmdTimeStampUtilsTest.kt",
+        "test": "samples time stamps based on previous time stamp test 1"
+      },
+      "prevNs": "1000000000",
+      "frameNs": "11000000000",
+      "count": 10,
+      "sampleRateHz": 1,
+      "expect": ["2000000000", "3000000000", "4000000000", "5000000000", "6000000000", "7000000000", "8000000000", "9000000000", "10000000000", "11000000000"]
+    },
+    {
+      "name": "from previous timestamp, fractional step",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PmdTimeStampUtilsTest.kt",
+        "test": "samples time stamps based on previous time stamp test 2"
+      },
+      "prevNs": "100",
+      "frameNs": "2000000000",
+      "count": 3,
+      "sampleRateHz": 1,
+      "note": "SDK expects round(666666733.33) and round(1333333366.66)",
+      "expect": ["666666733", "1333333367", "2000000000"]
+    },
+    {
+      "name": "from previous timestamp, one sample",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PmdTimeStampUtilsTest.kt",
+        "test": "samples time stamps based on previous time stamp only one sample"
+      },
+      "prevNs": "1000000000",
+      "frameNs": "2000000000",
+      "count": 1,
+      "sampleRateHz": 1,
+      "expect": ["2000000000"]
+    }
+  ]
+}

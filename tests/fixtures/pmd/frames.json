@@ -1,0 +1,967 @@
+{
+  "sdk": {
+    "repo": "https://github.com/polarofficial/polar-ble-sdk",
+    "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7"
+  },
+  "frames": [
+    {
+      "name": "PPG raw type 0",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test raw PPG frame type 0"
+      },
+      "catches": "24-bit sign extension of raw PPG samples; ambient channel order",
+      "hex": "01009435770000000000010203040506ffff7f000000ffffff0fefef0000800fefef",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "measType": 1,
+        "frameType": 0,
+        "compressed": false,
+        "count": 2,
+        "values": [
+          [0, 0, 197121],
+          [0, 1, 394500],
+          [0, 2, 8388607],
+          [0, 3, 0],
+          [1, 0, -1],
+          [1, 1, -1052913],
+          [1, 2, -8388608],
+          [1, 3, -1052913]
+        ],
+        "timestamps": [
+          [1, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "PPG raw type 4",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test raw PPG frame type 4"
+      },
+      "catches": "numInt bytes vs gain bytes split; ch1/ch2 gains taken from even/odd bytes & 0x07",
+      "hex": "01009435770000000004027f060206040206030201ff0107ff000000000000000001f87f0000000000000102eff8",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "note": "channels 0-11 numInt, 12-23 ch1Gain, 24-35 ch2Gain",
+      "expect": {
+        "count": 1,
+        "values": [
+          [0, 0, 2],
+          [0, 1, 127],
+          [0, 11, 255],
+          [0, 12, 1],
+          [0, 13, 7],
+          [0, 22, 1],
+          [0, 23, 7],
+          [0, 24, 7],
+          [0, 25, 0],
+          [0, 34, 2],
+          [0, 35, 0]
+        ],
+        "timestamps": [
+          [0, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "PPG raw type 5",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test raw PPG frame type 5"
+      },
+      "catches": "operation mode read as signed (SDK reads UNSIGNED_INT)",
+      "hex": "01009435770000000005ffffffff",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "count": 1,
+        "values": [
+          [0, 0, 4294967295]
+        ],
+        "timestamps": [
+          [0, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "PPG raw type 9",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test raw PPG frame type 9"
+      },
+      "catches": "type 9 dispatched like type 4",
+      "hex": "01009435770000000009060606060606060606060606ff00000000000000000000ff01000000000000000000ffff",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "note": "channels 0-11 numInt, 12-23 ch1Gain, 24-35 ch2Gain",
+      "expect": {
+        "count": 1,
+        "values": [
+          [0, 0, 6],
+          [0, 1, 6],
+          [0, 11, 6],
+          [0, 12, 7],
+          [0, 13, 0],
+          [0, 22, 0],
+          [0, 23, 7],
+          [0, 24, 0],
+          [0, 25, 0],
+          [0, 34, 0],
+          [0, 35, 7]
+        ],
+        "timestamps": [
+          [0, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "PPG delta type 0 (0x80, 3 PPG + ambient)",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test compressed PPG frame type 0"
+      },
+      "catches": "LSB-first bit order, 10-bit deltas spanning bytes, 24-bit reference sign extension, 41-sample block",
+      "hex": "010094357700000000802c2d00c27700d3d2ff3d88ff0a29b2f0ee3411b2ecee7411b1e8feb411b1e8feb411b1e0fe3412b0dc0e7512b0d80eb512afd41ef512afd01e3513aecc2e7513aec82eb513adc43ef513adbc3e7514adbc3e7514acb84eb514acb44ef514abb05e3515aaac6e7515aaa86eb515aaa46ef515a9a07e3516a99c7e7516a8988eb516a7949ef516a7909e3517a78c9e7517a688aeb517a588beb517a580be3518a47cce7518a478ceb518a378deb518a270ee3519a26cee7519a26cee7519a168feb519a0600e361a9f601e361a9f5c1e761a9f581eb61a9d543ef61a",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "measType": 1,
+        "frameType": 0,
+        "compressed": true,
+        "count": 42,
+        "values": [
+          [0, 0, 11564],
+          [0, 1, 30658],
+          [0, 2, -11565],
+          [0, 3, -30659],
+          [1, 0, 11742],
+          [1, 1, 30590],
+          [1, 2, -11743],
+          [1, 3, -30591]
+        ],
+        "timestamps": [
+          [41, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "PPG delta type 7",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test compressed PPG frame type 7"
+      },
+      "catches": "17-channel layout, 24-bit deltas, status channel masked to 24 bits",
+      "hex": "0100943577000000008709ae208a7c23583b1980b918db2e22fa881dd7bb18c2b81f7a442648df23a1f2173a371bffff007c080070f502ffff0028c411180187feffec020001fefffb00008df9ffb1ffff0cfeff26feffeefeff890200df020051feff000000000000000000000000aea68f",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "note": "channel 16 = status integer; the SDK asserts its binary digits (Integer.toBinaryString(1164328))",
+      "expect": {
+        "count": 2,
+        "values": [
+          [0, 0, 2141705],
+          [0, 1, 2325642],
+          [0, 15, 65535],
+          [0, 16, 1164328],
+          [1, 0, 2141328],
+          [1, 1, 2326390]
+        ],
+        "timestamps": [
+          [1, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "PPG delta type 8",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test compressed PPG frame type 8"
+      },
+      "catches": "25-channel layout, 3-bit deltas, FF FF FF reference = -1 while status reads 0xFFFFFF",
+      "hex": "01009435770000000088031001051002ffffff0910040b10050310060510070710080910090b100a03100b05100c07100d09100e0b100f0310100510110710120910130b1014031015051016071017091018ffffff030149922449922449922400",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "note": "channel 24 = status integer (SDK asserts Integer.toBinaryString(16777215))",
+      "expect": {
+        "count": 2,
+        "values": [
+          [0, 0, 69635],
+          [0, 1, 135173],
+          [0, 2, -1],
+          [0, 23, 1576969],
+          [0, 24, 16777215],
+          [1, 0, 69636],
+          [1, 1, 135174]
+        ],
+        "timestamps": [
+          [1, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "PPG delta type 10",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test compressed PPG frame type 10"
+      },
+      "catches": "red/green/ir channel split (8/6/6) + status; first-sample time from previous timestamp in Double",
+      "hex": "01c06e6a43e161ee0a8a350b186bdf1dc58d1a6ce11a4d931b48ba16a210183bd01b321d1e63bd1a08f317fb2f11000100a00714c27f19700a22977d19cc0822a0071457f3a5ffcf03180652b3ff8ef9ffaeefff5ffbffb1a6ff75f8ffa7f0ff32f1ffb800001e000097020008feff00ffff60f8eb8e07008a0000ae080097000060f8eb328afd0000004b2affa70400bc0f00d0feff64f5fe94e8ff5e07002f1700342700e711007b08002c0300000100a00714093c00d08600ce3b00ca8600a00714ce7502000000f0a4ffaa08004519008bffff9a8bff65f4ff921100402000c523008e0f000106006f0500d40219b82d38bf2d002c7800232e00a377006ccab5328afd000000def1ff2406002b120078feff89e9ff08fdff310b00490f00e206003c04005002005301002cfde648d2c72e0c00111c000f0d002e1c0094354ace75020000009c06003304005f0600e1fbff150600b900001c0600ce01006ffcffcdffffd101006affffd40219b82d3868feffb5f6ffd8fdffa6f6ff6ccab5328afd0000006edcffc700000f0600c5f8ff9fdeffe7fbff0efeff61f9ff9d0400b800007e02006701002cfde648d2c77e0700f50e00140700f10e0094354ace7502000000",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 13,
+        "prevTimestampNs": "1000"
+      },
+      "note": "channels 0-7 red, 8-13 green, 14-19 ir, 20 status",
+      "expect": {
+        "count": 7,
+        "values": [
+          [0, 0, 1575733],
+          [0, 1, 1957739],
+          [0, 2, 1740229],
+          [0, 3, 1761644],
+          [0, 4, 1807181],
+          [0, 5, 1489480],
+          [0, 6, 1577122],
+          [0, 7, 1822779],
+          [0, 8, 1973554],
+          [0, 9, 1752419],
+          [0, 10, 1569544],
+          [0, 11, 1126395],
+          [0, 12, 256],
+          [0, 13, 1312672],
+          [0, 14, 1671106],
+          [0, 15, 2230896],
+          [0, 16, 1670551],
+          [0, 17, 2230476],
+          [0, 18, 1312672],
+          [0, 19, -5901481],
+          [0, 20, 249855]
+        ],
+        "timestamps": [
+          [0, "112524943566143712"]
+        ]
+      }
+    },
+    {
+      "name": "PPG delta type 13",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test compressed PPG frame type 13"
+      },
+      "catches": "many blocks (84 samples) staying aligned",
+      "hex": "0100943577000000008da8192a68b7260300000c036694f8008076f40f0064e4230000100c550c42fe00007a064e01000063ff01fd00001203ddff000045f976ff000033f134ff00004ced70fd0000aef086010000a0f50901000016f5f9fb00008bf95000000012fc050100000c10fb59eb002092270d00e7cee000c0eefc0c00e9bddb00c0f9a40d001ab1ae0060fd430f00aba1f700e0372d0e00bdb3de00604d940f00d6d107003033db0f0097f4140000362c0e001028cd0891ff0000c106f10000004201e9fd00003f118df900001e34ac030000ad31ae0400007c1393fc0000aafaadf60000bdf80df40000acf685fb000028f84bf900007a01ddfc0000930f81050000ff20570f00000a2722130000fa10a50900003c096a000000512704020000552377fe000056fb42f6000001e11ff20000e6d92feb0000e9dc6ae8000058e4ede30000f1ef33e800009bf464eb0000bcf5d9ed0000e9f8def1000054ecaff300009de786fb000000eefeff000033ee1d0000001bef07020000d4f25b060000d7f59c000000d0fba7010000a8fa35010000b7fa8602000084f765060000bafd170200000c0c20dfdf0020f6320100aa5e0200d0df010100eaa22100901cba03000a732d009011650200c462de000008d20300c0162a00d04dc30100",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "count": 84,
+        "values": [
+          [0, 0, 2759080],
+          [0, 1, 2537320],
+          [0, 2, 3]
+        ]
+      }
+    },
+    {
+      "name": "PPG raw type 14",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test raw PPG frame type 14"
+      },
+      "catches": "single-timeslot gain layout",
+      "patched": "byte 0 changed from 0xA5 to 0x01: the SDK test calls PpgData.parseDataFromDataFrame directly; 0xA5 & 0x3F = 0x25 is not a measurement type (kept as an error vector)",
+      "hex": "0100943577000000000e034892",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "count": 1,
+        "values": [
+          [0, 0, 3],
+          [0, 1, 0],
+          [0, 2, 2]
+        ],
+        "timestamps": [
+          [0, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "ACC raw type 1",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/AccDataTest.kt",
+        "test": "process acc raw data frame type 1"
+      },
+      "catches": "int16 little endian; first frame timestamps from the sample rate",
+      "hex": "02009435770000000001f7ffffffe703f8fffeffe503f9ffffffe503faffffffe603fafffeffe603f9ffffffe503f8ffffffe603f8fffeffe603faffffffe503faffffffe703faffffffe503f8ffffffe603f7ffffffe603f8fffeffe603f9fffeffe703f9ff0000e603f9ffffffe603f7fffeffe503f9ffffffe503f9ffffffe503faff0000e603f9fffeffe603f8ffffffe603f8ffffffe503f9ffffffe603f9ffffffe503faffffffe603f9ffffffe503f9ffffffe503f8fffeffe603f9ffffffe603f9ffffffe603f9ff0000e503f9fffeffe603f8fffeffe603f7fffeffe603",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 52,
+        "prevTimestampNs": "0"
+      },
+      "expect": {
+        "measType": 2,
+        "frameType": 1,
+        "compressed": false,
+        "count": 36,
+        "values": [
+          [0, 0, -9],
+          [0, 1, -1],
+          [0, 2, 999],
+          [1, 0, -8],
+          [1, 1, -2],
+          [1, 2, 997]
+        ],
+        "timestamps": [
+          [35, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "ACC delta type 0 (0x80, Verity Sense ACC)",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/AccDataTest.kt",
+        "test": "process acc compressed data type 0"
+      },
+      "catches": "factor applied once as factor*1000 (G to mG) in Float32; first sample = previous + delta",
+      "hex": "020094357700000000807107f06a9e8d0a38be5cbeba2f96b3ee4be5adfb42b9ebbe4cfeba2f92bfee4be4b1fb12b9ecbd3c3ebb2f8fd3de4be3b5f7d2b8edbd307e7b2f8be3ce8be2baf7a2b8eebc20be7b2f88f3cecbe1bdef52f8efbc18fe3b2f8403bfcbe0c2ef32b8f0bb044ebc2e8113af0be0c6eff2f7f1b9fc7dbc2e7d279f4bdfcaebc2f7f2b8eccd7c2e7b378f4bdecee392f7f3b8e00dfd2d774b7fcbddd2df6237f5b7d44dbd2d745b6fcbdcd7d73237f6b5c88d7d2d716b4f4bdcdcd3f236f7b4bcddfd2c6f7b3f4bdbe0cfd236f8b2b02dbe2c6c8f1fcbdae3c7a276f9",
+      "ctx": {
+        "factor": 0.000244,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "note": "expected = SDK expression (factor * sample * 1000f).toInt() evaluated in float32; first timestamp = round(100 + (2e9-100)/57)",
+      "expect": {
+        "count": 57,
+        "values": [
+          [0, 0, 464],
+          [0, 1, 6679],
+          [0, 2, -7144],
+          [1, 0, 511],
+          [1, 1, 6654],
+          [1, 2, -7165]
+        ],
+        "allAbsLe": 8000,
+        "timestamps": [
+          [0, "35087818"],
+          [56, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "ACC delta type 1",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/AccDataTest.kt",
+        "test": "process acc compressed data type 1"
+      },
+      "catches": "rounding of sample times: 100.5 ns must round half-to-even (Kotlin round) to 100",
+      "hex": "02650000000000000081f1ff1400f00306017b0f08",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "count": 2,
+        "values": [
+          [0, 0, -15],
+          [0, 1, 20],
+          [0, 2, 1008],
+          [1, 0, -20],
+          [1, 1, 17],
+          [1, 2, 1008]
+        ],
+        "timestamps": [
+          [0, "100"],
+          [1, "101"]
+        ]
+      }
+    },
+    {
+      "name": "GYRO delta type 0",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/GyrDataTest.kt",
+        "test": "process gyro compressed data type 0"
+      },
+      "catches": "64-bit timestamp 0x7FFFFFFFFFFFFFFF kept exact (no Number conversion)",
+      "hex": "05ffffffffffffff7f80eaff08000d000301df00",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "measType": 5,
+        "count": 2,
+        "timestampNs": "9223372036854775807",
+        "values": [
+          [0, 0, -22],
+          [0, 1, 8],
+          [0, 2, 13],
+          [1, 0, -23],
+          [1, 1, 11],
+          [1, 2, 16]
+        ],
+        "timestamps": [
+          [1, "9223372036854775807"]
+        ]
+      }
+    },
+    {
+      "name": "GYRO delta type 1 (float32 references)",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/GyrDataTest.kt",
+        "test": "process gyro compressed data type 1"
+      },
+      "catches": "float references read as raw bits (not sign-extended); 28-bit deltas; Int32 wrap-around when adding",
+      "hex": "050094357700000000810000803f000020410000a0411c010000a001000008cdccec0d",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "count": 2,
+        "values": [
+          [
+            0,
+            0,
+            {
+              "f32": "3f800000"
+            }
+          ],
+          [
+            0,
+            1,
+            {
+              "f32": "41200000"
+            }
+          ],
+          [
+            0,
+            2,
+            {
+              "f32": "41a00000"
+            }
+          ],
+          [
+            1,
+            0,
+            {
+              "f32": "41200000"
+            }
+          ],
+          [
+            1,
+            1,
+            {
+              "f32": "41a00000"
+            }
+          ],
+          [
+            1,
+            2,
+            {
+              "f32": "3f8ccccd"
+            }
+          ]
+        ],
+        "timestamps": [
+          [1, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "GYRO delta type 1 with factor 0.5",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/GyrDataTest.kt",
+        "test": "process gyro compressed data type 1 with factor"
+      },
+      "catches": "factor applied to float samples when factor != 1",
+      "hex": "050094357700000000810000803f000020410000a0411c010000a001000008cdccec0d",
+      "ctx": {
+        "factor": 0.5,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "note": "expected = factor * intBitsToFloat(bits) in float32, as the SDK test computes",
+      "expect": {
+        "count": 2,
+        "values": [
+          [
+            0,
+            0,
+            {
+              "f32": "3f000000"
+            }
+          ],
+          [
+            0,
+            1,
+            {
+              "f32": "40a00000"
+            }
+          ],
+          [
+            0,
+            2,
+            {
+              "f32": "41200000"
+            }
+          ],
+          [
+            1,
+            0,
+            {
+              "f32": "40a00000"
+            }
+          ],
+          [
+            1,
+            1,
+            {
+              "f32": "41200000"
+            }
+          ],
+          [
+            1,
+            2,
+            {
+              "f32": "3f0ccccd"
+            }
+          ]
+        ],
+        "timestamps": [
+          [1, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "MAG delta type 0",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/MagDataTest.kt",
+        "test": "process magnetometer compressed data type 0"
+      },
+      "catches": "6-bit deltas across byte boundaries; no calibration channel in type 0",
+      "hex": "06009435770000000080e2e6fa15490a06017f20fc",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "measType": 6,
+        "count": 2,
+        "channels": 3,
+        "values": [
+          [0, 0, -6430],
+          [0, 1, 5626],
+          [0, 2, 2633],
+          [1, 0, -6431],
+          [1, 1, 5627],
+          [1, 2, 2635]
+        ],
+        "timestamps": [
+          [1, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "MAG delta type 1",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/MagDataTest.kt",
+        "test": "process magnetometer compressed data type 1"
+      },
+      "catches": "milligauss to gauss (/1000); calibration status as 4th channel",
+      "hex": "0600943577000000008137ff51fd6cf600000301f802",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "note": "SDK compares x/y/z with delta 1e-5",
+      "expect": {
+        "count": 2,
+        "channels": 4,
+        "values": [
+          [0, 0, -0.201, 0.00001],
+          [0, 1, -0.687, 0.00001],
+          [0, 2, -2.452, 0.00001],
+          [0, 3, 0],
+          [1, 0, -0.201, 0.00001],
+          [1, 1, -0.688, 0.00001],
+          [1, 2, -2.449, 0.00001],
+          [1, 3, 1]
+        ],
+        "timestamps": [
+          [1, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "MAG delta type 1 with factor 1.1",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/MagDataTest.kt",
+        "test": "process magnetometer compressed data type 1 with factor"
+      },
+      "catches": "factor applied before the /1000 conversion, not to the calibration status",
+      "hex": "0600943577000000008137ff51fd6cf600000301f802",
+      "ctx": {
+        "factor": 1.1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "note": "expected = SDK test expression factor * (sample / 1000) evaluated in double; SDK compares with delta 1e-5",
+      "expect": {
+        "count": 2,
+        "values": [
+          [0, 0, -0.22110000000000002, 0.00001],
+          [0, 1, -0.7557000000000001, 0.00001],
+          [0, 2, -2.6972, 0.00001],
+          [0, 3, 0],
+          [1, 0, -0.22110000000000002, 0.00001],
+          [1, 1, -0.7568, 0.00001],
+          [1, 2, -2.6939, 0.00001],
+          [1, 3, 1]
+        ],
+        "timestamps": [
+          [1, "2000000000"]
+        ]
+      }
+    },
+    {
+      "name": "PPI raw type 0",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpiDataTest.kt",
+        "test": "process ppi raw data type 0"
+      },
+      "catches": "PP interval and error as uint16 LE; flag bits 0-2",
+      "hex": "030000000000000000008080808080ff000100010000",
+      "ctx": {
+        "factor": 1,
+        "sampleRateHz": 0,
+        "prevTimestampNs": "100"
+      },
+      "expect": {
+        "measType": 3,
+        "count": 2,
+        "ppi": [
+          {
+            "hr": 128,
+            "ppMs": 32896,
+            "ppErrorMs": 32896,
+            "blocker": 1,
+            "skinContact": 1,
+            "skinContactSupported": 1
+          },
+          {
+            "hr": 0,
+            "ppMs": 1,
+            "ppErrorMs": 1,
+            "blocker": 0,
+            "skinContact": 0,
+            "skinContactSupported": 0
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "name": "PPG raw type 10",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test uncompressed PPG frame type 10 throws error"
+      },
+      "hex": "01c06e6a43e161ee0a0a350b186bdf1dc58d1a6ce11a4d93",
+      "throws": "frame type 0x0a",
+      "catches": "raw type 10 decoded although the SDK never dispatches it"
+    },
+    {
+      "name": "PPG raw type 13",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test uncompressed PPG frame type 13 throws error"
+      },
+      "hex": "01c06e6a43e161ee0a0d350b186bdf1dc58d1a6ce11a4d93",
+      "throws": "frame type 0x0d",
+      "catches": "compressed flag ignored (type 13 exists only compressed)"
+    },
+    {
+      "name": "PPG delta type 14",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test uncompressed PPG frame type 14 throws error"
+      },
+      "hex": "0100006bc5039900008e034892",
+      "throws": "frame type 0x0e",
+      "patched": "byte 0 0xA5 -> 0x01 so the frame-type check is reached",
+      "catches": "compressed flag ignored (type 14 exists only raw)"
+    },
+    {
+      "name": "measurement type 0x25",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "test raw PPG frame type 14"
+      },
+      "hex": "a500943577000000000e034892",
+      "throws": "measurement type 0x25",
+      "catches": "byte 0 not masked with 0x3F, or unknown types decoded as garbage"
+    },
+    {
+      "name": "ECG is not decoded here",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientTest.kt",
+        "test": "process ecg data"
+      },
+      "hex": "00386c3172a4d3230d0300120311100400",
+      "throws": "measurement type 0x00",
+      "catches": "types outside PPG/ACC/PPI/GYRO/MAG silently accepted"
+    },
+    {
+      "name": "ACC delta type 3",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientTest.kt",
+        "test": "process acc data"
+      },
+      "hex": "0201000000000000008300",
+      "throws": "frame type 0x03",
+      "catches": "unknown ACC frame type decoded with a guessed layout"
+    },
+    {
+      "name": "GYRO raw",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/GyrDataTest.kt",
+        "test": "Gyro raw type throws PmdDataParseException"
+      },
+      "hex": "05000000000000000100",
+      "throws": "frame type 0x00",
+      "catches": "raw gyro accepted (the SDK has none)"
+    },
+    {
+      "name": "MAG raw",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/MagDataTest.kt",
+        "test": "Magnetometer raw type throws PmdDataParseException"
+      },
+      "hex": "06000000000000000100",
+      "throws": "frame type 0x00",
+      "catches": "raw magnetometer accepted (the SDK has none)"
+    },
+    {
+      "name": "PPI delta",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpiDataTest.kt",
+        "test": "PPI compressed type throws PmdDataParseException"
+      },
+      "hex": "0300000000000000018001",
+      "throws": "frame type 0x00",
+      "catches": "compressed PPI accepted (the SDK has none)"
+    },
+    {
+      "name": "PPG delta type 0 empty",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "PPG compressed type 0 throws PmdDataParseException when dataContent is empty"
+      },
+      "hex": "01000000000000000180",
+      "throws": "empty",
+      "catches": "empty delta payload returning zero samples"
+    },
+    {
+      "name": "PPG raw type 0 empty",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "PPG raw type 0 throws PmdDataParseException when dataContent is empty"
+      },
+      "hex": "01000000000000000100",
+      "throws": "multiple of 12",
+      "catches": "empty raw payload returning zero samples"
+    },
+    {
+      "name": "PPG raw type 0, 11 bytes",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "PPG raw type 0 throws PmdDataParseException when dataContent size is not multiple of sample size"
+      },
+      "hex": "010000000000000001000000000000000000000000",
+      "throws": "multiple of 12",
+      "catches": "trailing partial sample dropped silently"
+    },
+    {
+      "name": "PPG raw type 6, 7 bytes",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpgDataTest.kt",
+        "test": "PPG raw type 6 throws PmdDataParseException when dataContent is too short"
+      },
+      "hex": "0100000000000000010600000000000000",
+      "throws": "needs 8",
+      "catches": "short sport id read past the end"
+    },
+    {
+      "name": "PPI raw, 5 bytes",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpiDataTest.kt",
+        "test": "PPI raw type 0 throws PmdDataParseException when dataContent size is not multiple of 6"
+      },
+      "hex": "030000000000000001000102030405",
+      "throws": "multiple of 6",
+      "catches": "partial PPI sample decoded"
+    },
+    {
+      "name": "PPI raw empty",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/PpiDataTest.kt",
+        "test": "PPI raw type 0 throws PmdDataParseException when dataContent is empty"
+      },
+      "hex": "03000000000000000100",
+      "throws": "multiple of 6",
+      "catches": "empty PPI frame accepted (the iOS SDK accepts it, Android throws)"
+    },
+    {
+      "name": "frame of 9 bytes",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/PmdDataFrameValidationTest.kt",
+        "test": "PmdDataFrame throws PmdDataParseException when data has fewer than 10 bytes"
+      },
+      "hex": "010000000000000000",
+      "throws": "too short: 9 bytes",
+      "catches": "header read past the end"
+    },
+    {
+      "name": "truncated delta block",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/model/AccDataTest.kt",
+        "test": "process acc compressed data type 1",
+        "derived": "last byte removed"
+      },
+      "hex": "02650000000000000081f1ff1400f00306017b0f",
+      "throws": "truncated",
+      "catches": "partial block decoded from missing bytes (the iOS SDK returns partial data)"
+    }
+  ],
+  "docFrames": [
+    {
+      "name": "Verity Sense ACC delta frame (0x80)",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 14, Figure 3 \"Start Stream\", Polar Verity Sense example"
+      },
+      "patched": "sample count byte 0x1D (29) changed to 0x02 and the bytes after the second delta dropped: the document prints only the start of the frame",
+      "hex": "02646c76c43cc67f0780d0ff6501e40f0802fc07ff0c13f2",
+      "expect": {
+        "measType": 2,
+        "timestampNs": "540368444604181604",
+        "frameType": 0,
+        "compressed": true,
+        "rawSamples": [
+          [-48, 357, 4068],
+          [-52, 364, 4067],
+          [-40, 383, 4053]
+        ]
+      }
+    }
+  ]
+}

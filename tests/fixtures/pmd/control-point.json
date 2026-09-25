@@ -1,0 +1,376 @@
+{
+  "sdk": {
+    "repo": "https://github.com/polarofficial/polar-ble-sdk",
+    "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7"
+  },
+  "responses": [
+    {
+      "name": "GET_SETTINGS success with 3 parameter bytes",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientControlPointResponseTest.kt",
+        "test": "success control point response for acc stream settings"
+      },
+      "hex": "f001020000ffffff",
+      "expect": {
+        "type": "response",
+        "opCode": 1,
+        "measType": 2,
+        "status": 0,
+        "statusName": "SUCCESS",
+        "more": false,
+        "parameters": "ffffff",
+        "settings": null,
+        "settingsError": "0xff"
+      }
+    },
+    {
+      "name": "GET_SETTINGS failure, invalid resolution",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientControlPointResponseTest.kt",
+        "test": "failing control point response for mag stream settings"
+      },
+      "hex": "f001060700",
+      "expect": {
+        "type": "response",
+        "opCode": 1,
+        "measType": 6,
+        "status": 7,
+        "statusName": "ERROR_INVALID_RESOLUTION",
+        "more": false,
+        "parameters": "",
+        "settings": null
+      }
+    },
+    {
+      "name": "START failure, status 0x11",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientControlPointResponseTest.kt",
+        "test": "derived measurement start fails with ERROR_INVALID_DERIVED_MEASUREMENT_SETTINGS_GROUP"
+      },
+      "hex": "f0020f1100",
+      "expect": {
+        "type": "response",
+        "opCode": 2,
+        "measType": 15,
+        "status": 17,
+        "statusName": "ERROR_INVALID_DERIVED_MEASUREMENT_SETTINGS_GROUP",
+        "more": false,
+        "parameters": ""
+      }
+    },
+    {
+      "name": "unknown status 0x7f",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientControlPointResponseTest.kt",
+        "test": "unknown future error code does not crash and maps to UNKNOWN_ERROR"
+      },
+      "hex": "f0020f7f00",
+      "expect": {
+        "type": "response",
+        "status": 127,
+        "statusName": "UNKNOWN_ERROR"
+      }
+    },
+    {
+      "name": "START success carrying FACTOR 2.5",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientTest.kt",
+        "test": "startMeasurement - success response updates factor in currentSettings"
+      },
+      "hex": "f002010000050100002040",
+      "note": "response built by the test helper buildStartMeasurementSuccessResponse with FACTOR = floatToIntBits(2.5f)",
+      "expect": {
+        "type": "response",
+        "opCode": 2,
+        "measType": 1,
+        "status": 0,
+        "settings": {
+          "factor": [2.5]
+        }
+      }
+    },
+    {
+      "name": "device stopped PPG and ACC",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientTest.kt",
+        "test": "process measurement stop control point command"
+      },
+      "hex": "010102",
+      "expect": {
+        "type": "measurementStopped",
+        "measTypes": [1, 2]
+      }
+    },
+    {
+      "name": "device stop notice without types",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/BlePmdClientTest.kt",
+        "test": "process measurement stop control point command from service no content"
+      },
+      "hex": "01",
+      "expect": {
+        "type": "measurementStopped",
+        "measTypes": []
+      }
+    },
+    {
+      "name": "Verity Sense ACC settings",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 13, Figure 2, Polar Verity Sense response"
+      },
+      "hex": "f001020000000134000101100002010800040103",
+      "expect": {
+        "type": "response",
+        "opCode": 1,
+        "measType": 2,
+        "status": 0,
+        "more": false,
+        "settings": {
+          "sampleRate": [52],
+          "resolution": [16],
+          "range": [8],
+          "channels": [3]
+        }
+      }
+    },
+    {
+      "name": "Verity Sense ACC start response with FACTOR",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 14, Figure 3, Polar Verity Sense start (delta framed)"
+      },
+      "hex": "f002020000050140da7f39",
+      "expect": {
+        "type": "response",
+        "opCode": 2,
+        "measType": 2,
+        "status": 0,
+        "settings": {
+          "factor": [
+            {
+              "f32": "397fda40"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "H10 start response with one reserved byte",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 14, Figure 3, H10 start"
+      },
+      "hex": "f00202000001",
+      "expect": {
+        "type": "response",
+        "opCode": 2,
+        "status": 0,
+        "settings": {}
+      }
+    },
+    {
+      "name": "SDK mode start response",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 16, Figure 5, Polar Sense start SDK mode"
+      },
+      "hex": "f002090000",
+      "expect": {
+        "type": "response",
+        "opCode": 2,
+        "measType": 9,
+        "status": 0,
+        "settings": {}
+      }
+    }
+  ],
+  "settings": [
+    {
+      "name": "ACC settings with 4 ranges",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/PmdSettingTest.kt",
+        "test": "testPmdSettingsWithRange"
+      },
+      "hex": "00013400010110000204f500f401e803d007040103",
+      "expect": {
+        "sampleRate": [52],
+        "resolution": [16],
+        "range": [245, 500, 1000, 2000],
+        "channels": [3]
+      }
+    },
+    {
+      "name": "RANGE_MILLIUNIT 4-byte values",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/PmdSettingTest.kt",
+        "test": "testPmdSettingWithRangeMilliUnit"
+      },
+      "hex": "0302ffffffffff00000001010e00",
+      "note": "first byte is PmdSettingType.RANGE_MILLIUNIT.numVal (3)",
+      "expect": {
+        "rangeMilliunit": [-1, 255],
+        "resolution": [14]
+      }
+    },
+    {
+      "name": "truncated settings",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/iOS/ios-communications/Tests/iOSCommunicationsTests/PmdSettingTest.swift",
+        "test": "testPmdSettingThrows"
+      },
+      "hex": "0302ffffffffff00000001010e",
+      "throws": "truncated"
+    }
+  ],
+  "serialization": [
+    {
+      "name": "selected settings round trip, FACTOR not sent",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "sources/Android/android-communications/library/src/test/java/com/polar/androidcommunications/api/ble/model/gatt/client/pmd/PmdSettingTest.kt",
+        "test": "testPmdSelectedSerialization"
+      },
+      "selected": {
+        "sampleRate": 32767,
+        "resolution": 0,
+        "range": 15,
+        "rangeMilliunit": 2147483647,
+        "channels": 4,
+        "factor": 15
+      },
+      "expect": {
+        "sampleRate": [32767],
+        "resolution": [0],
+        "range": [15],
+        "rangeMilliunit": [2147483647],
+        "channels": [4]
+      }
+    }
+  ],
+  "features": [
+    {
+      "name": "Verity Sense features",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 12, Figure 1, Polar Verity Sense response"
+      },
+      "hex": "0f6e000000000000000000000000000000",
+      "expect": [1, 2, 3, 5, 6]
+    }
+  ],
+  "commands": [
+    {
+      "name": "start ACC 52 Hz 16 bit 8 G 3 ch",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 14, Figure 3, Polar Verity Sense start request"
+      },
+      "call": [
+        "buildStart",
+        2,
+        {
+          "sampleRate": 52,
+          "resolution": 16,
+          "range": 8,
+          "channels": 3
+        }
+      ],
+      "hex": "0202000134000101100002010800040103"
+    },
+    {
+      "name": "get ACC settings",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 13, Figure 2, request"
+      },
+      "call": ["buildGetSettings", 2],
+      "hex": "0102"
+    },
+    {
+      "name": "get ACC SDK-mode settings",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 17, Figure 6, request"
+      },
+      "call": [
+        "buildGetSettings",
+        2,
+        {
+          "sdkMode": true
+        }
+      ],
+      "hex": "0402"
+    },
+    {
+      "name": "stop ACC",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 15, Figure 4, request"
+      },
+      "call": ["buildStop", 2],
+      "hex": "0302"
+    },
+    {
+      "name": "start SDK mode",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 16, Figure 5, request"
+      },
+      "call": ["buildStart", 9],
+      "hex": "0209"
+    },
+    {
+      "name": "stop SDK mode",
+      "source": {
+        "repo": "https://github.com/polarofficial/polar-ble-sdk",
+        "commit": "a693e9e944c9bc925addbdd8cf07fb9b28748bf7",
+        "path": "technical_documentation/online_measurement.pdf",
+        "test": "page 16, Figure 5, request"
+      },
+      "call": ["buildStop", 9],
+      "hex": "0309"
+    }
+  ]
+}
