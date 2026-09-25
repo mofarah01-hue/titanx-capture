@@ -2,8 +2,8 @@
 
 Research capture dashboard for Polar Verity Sense optical HR sensors worn in combat sports headgear (Sa7a Labs, Titan X). It is a web page: open it in Chrome, click Connect, and it records. No install, no accounts, no backend, no telemetry.
 
-- Live link (after the first release): `https://mofarah01-hue.github.io/titanx-capture/`
-- Simulator: add `?sim=3` to the link (1 to 7 fake sensors, everything works as with real ones)
+- Live link: `https://mofarah01-hue.github.io/titanx-capture/`. Until the Phase 1 release it is a **demo**: simulated sensors only, never a real one (`PAGES_DEMO` in `core/version.js`)
+- Simulator: add `?sim=3` to the link (1 to 7 fake sensors, everything works as with real ones). Run the demo connects them all in one click
 - First run again: add `?setup=reset` (clears saved settings, never recordings)
 
 For the remote user: [QUICKSTART.md](QUICKSTART.md). For the first real session on the Mac: [MAC_FIRST_RUN.md](MAC_FIRST_RUN.md).

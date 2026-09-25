@@ -125,8 +125,9 @@ export function drawSpark(c, hrBuf, ppgBuf, maxMode, t) {
  * rows: [{ label, hrBuf, max, maxMode, athleteId }]
  */
 export function drawStrip(c, rows, marks, t) {
-  const { ctx, w, h } = fit(c); ctx.clearRect(0, 0, w, h);
   const L = 150, R = 14, top = 26, rowH = 12, gap = 4, T = sessionEnd(t);
+  c.style.height = `${top + rows.length * (rowH + gap) + 6}px`; // every athlete gets a row
+  const { ctx, w, h } = fit(c); ctx.clearRect(0, 0, w, h);
   const X = (x) => L + x / T * (w - L - R), bottom = top + rows.length * (rowH + gap) - gap;
   ctx.font = `600 11px ${C.font}`; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
   const step = stepFor(T);

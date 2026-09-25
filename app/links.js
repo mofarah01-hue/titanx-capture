@@ -47,6 +47,13 @@ export async function connect(slotId = null) {
   start(device, id);
 }
 
+/** Demo only: connect a simulated sensor straight away, no chooser. */
+export function connectSim(id) {
+  const d = radio?.devices.find((x) => x.id === id);
+  const st = S.links.get(id)?.linkState?.state;
+  if (d && st !== 'streaming' && st !== 'connecting') start(d, id);
+}
+
 function start(device, id) {
   let e = S.links.get(id);
   if (e && e.device === device && e.link.state !== 'disconnected') { e.link.run(e.link.failedAt).catch(() => {}); return; }

@@ -23,6 +23,7 @@ export function rebuild() {
   const ids = slotIds(), L = layoutFor(ids.length + (ids.length ? 0 : 1));
   const live = $('#live', root);
   live.className = `live ${L}`;
+  live.dataset.count = String(ids.length);
   $('#stripWrap', root).hidden = L !== 'n7';
   layout = L;
   cards = ids.map((id) => card(id, L));

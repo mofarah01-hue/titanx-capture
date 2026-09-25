@@ -86,6 +86,8 @@ main{overflow:auto;padding:14px 16px 28px}
 .live.n1{grid-template-columns:minmax(0,1fr)}
 .live.n2,.live.n4{grid-template-columns:repeat(2,minmax(0,1fr))}
 .live.n7{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+@media (min-width:1300px){.live.n7[data-count="8"]{grid-template-columns:repeat(4,minmax(0,1fr))}.live.n7[data-count="9"],.live.n7[data-count="10"]{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.live.n7 .addslot{grid-column:1/-1;min-height:56px}
 @media (max-width:900px){.live.n2,.live.n4{grid-template-columns:1fr}}
 .apanel,.tile{border:1px solid var(--edge);border-top:4px solid #111;border-radius:var(--r);background:var(--panel);padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0;box-shadow:0 1px 2px rgba(20,20,20,.05)}
 .tile{padding:12px;gap:10px;cursor:pointer}
@@ -122,7 +124,7 @@ button.kpi:hover{border-color:var(--edge-hi)}
 .kbox{border:1.5px dashed var(--polar);border-radius:6px;padding:0 10px 2px;align-self:stretch}
 .tile .kbox{padding:0 6px 1px}
 .big{font-size:52px;font-weight:800;line-height:1.05;letter-spacing:-.02em}
-.n4 .big{font-size:40px} .tile .big{font-size:34px}
+.n4 .big{font-size:40px} .tile .big{font-size:31px} .tile .u{font-size:12px}
 .u{font-size:14px;color:var(--dim);font-weight:600}
 .kpi .big.dash{color:var(--faint)}
 .kpi .big.wordy{font-size:24px;line-height:1.6}

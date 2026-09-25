@@ -13,11 +13,13 @@ import { PMD_SERVICE_UUID, PMD_CONTROL_POINT_UUID, PMD_DATA_UUID, MeasurementTyp
 import { buildControlPointResponse, buildSettingsResponse, encodeSettings, encodeFeatures, encodeFrame, encodePpiFrame, encodeHeartRateMeasurement } from '../pmd/encode.js';
 import { createWearer, dropoutsFor, lossFor } from './models.js';
 
-export const SIM_IDS = ['C8A1B2E4', 'D2403C19', 'D2407A55', 'C8A1F07D', 'B91E0C33', 'B91E6D02', 'A07C2F18'];
+export const SIM_IDS = ['C8A1B2E4', 'D2403C19', 'D2407A55', 'C8A1F07D', 'B91E0C33', 'B91E6D02', 'A07C2F18', 'E3B5A901', 'F1C7D244', 'A95E3B70'];
 const WEARERS = [
   { seed: 1, rest: 56, max: 190, k: 1.02 }, { seed: 3, rest: 58, max: 197, k: 0.9 }, { seed: 4, rest: 61, max: 192, k: 1 },
-  null /* same head as sensor 2 */, { seed: 5, rest: 57, max: 198, k: 0.95 }, { seed: 6, rest: 60, max: 203, k: 0.97 }, { seed: 7, rest: 64, max: 190, k: 0.3 },
+  null /* same head as sensor 2, unless every sensor is its own person */, { seed: 5, rest: 57, max: 198, k: 0.95 }, { seed: 6, rest: 60, max: 203, k: 0.97 },
+  { seed: 7, rest: 64, max: 190, k: 0.3 }, { seed: 8, rest: 59, max: 196, k: 0.8 }, { seed: 9, rest: 55, max: 200, k: 1.08 }, { seed: 10, rest: 62, max: 188, k: 0.7 },
 ];
+const OWN_HEAD_3 = { seed: 11, rest: 60, max: 194, k: 0.86 };
 const NS_2000 = BigInt(Date.UTC(2000, 0, 1)) * 1000000n;
 const MODEL_OFFSET_S = 880; // start the practice script just before the first live bout
 const SIM_START = performance.now();
@@ -60,12 +62,12 @@ class FakeService {
 }
 
 class FakeDevice extends EventTarget {
-  constructor(index) {
+  constructor(index, distinct = false) {
     super();
     this.index = index;
     this.id = SIM_IDS[index % SIM_IDS.length];
     this.name = `Polar Sense ${this.id}`;
-    this.wearer = createWearer(WEARERS[index % 7] || WEARERS[2]);
+    this.wearer = createWearer(WEARERS[index % WEARERS.length] || (distinct ? OWN_HEAD_3 : WEARERS[2]));
     this.loss = lossFor(index);
     this.dropouts = dropoutsFor(index).map(([a, b]) => [a + 20, b + 20]); // seconds after page load
     this.drift = [12, -8, 20, 5, -15, 3, 9][index % 7] * 1e-6;
@@ -218,7 +220,8 @@ function parseStart(b) {
 
 /** Stand in for navigator.bluetooth. The app shows its own chooser for sim sensors. */
 export class SimRadio {
-  constructor(count) { this.devices = Array.from({ length: count }, (_, i) => new FakeDevice(i)); this.pending = null; this.onChooser = null; }
+  /** distinct: every sensor on its own person (the 8 to 10 sensor demo); otherwise sensors 2 and 3 share a head. */
+  constructor(count, { distinct = false } = {}) { this.devices = Array.from({ length: count }, (_, i) => new FakeDevice(i, distinct)); this.pending = null; this.onChooser = null; }
   async getAvailability() { return true; }
   addEventListener() {}
   requestDevice() {

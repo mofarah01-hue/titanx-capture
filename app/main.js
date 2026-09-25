@@ -2,7 +2,7 @@
 // starts here. URL options: ?sim=N fakes N sensors, ?setup=reset clears saved settings (never
 // recordings), ?debug=1 logs every raw packet to the console.
 import T from '../strings/en.js';
-import { VERSION, BUILT } from '../core/version.js';
+import { VERSION, BUILT, PAGES_DEMO } from '../core/version.js';
 import { browserCheck, watchBluetooth, createWakeLock, watchForUpdates, reloadFresh } from '../core/platform.js';
 import { folderState, pickFolder, allowSaving, writeTest, isSharedFolder } from '../core/storage/folder.js';
 import { kvGet, kvSet, kvClear } from '../core/storage/kv.js';
@@ -10,7 +10,7 @@ import { loadRegistry, saveRegistry, emptyRegistry, upsertAthlete, upsertSensor 
 import { SimRadio, SIM_IDS } from '../core/sim/fake-sensor.js';
 import { zipToBlob } from '../core/storage/zip.js';
 import { S, bus, emit, now, ingest, newData, log, athletesInView, slotState } from './state.js';
-import { initLinks, connect, disconnectAll } from './links.js';
+import { initLinks, connect, connectSim, disconnectAll } from './links.js';
 import { readTokens } from './draw.js';
 import { ICO, EVENTS, esc, el, $, $$, toast, say, modal, fmtClock, fmtMS } from './ui.js';
 import * as live from './views/live.js';
@@ -21,7 +21,10 @@ import * as ses from './views/session.js';
 import { openHelp } from './views/help.js';
 
 const params = new URLSearchParams(location.search);
-S.sim = Math.max(0, Math.min(7, parseInt(params.get('sim') || '0', 10) || 0));
+S.sim = Math.max(0, Math.min(10, parseInt(params.get('sim') || '0', 10) || 0));
+// The live link is a demo until the Phase 1 release: simulated sensors only, never a real one.
+S.demo = PAGES_DEMO && location.hostname.endsWith('github.io');
+if (S.demo && !S.sim) S.sim = 2;
 S.debug = params.get('debug') === '1';
 const CKPT_S = parseInt(params.get('ckpt') || '', 10) || undefined; // tests only: Drive copy interval in seconds (default 300)
 
@@ -49,7 +52,7 @@ async function boot() {
   wake = createWakeLock((on) => { S.wake = on; });
 
   let radio = null;
-  if (S.sim) { radio = new SimRadio(S.sim); seedSimRegistry(); S.bluetooth = true; }
+  if (S.sim) { radio = new SimRadio(S.sim, { distinct: S.sim >= 8 }); seedSimRegistry(); S.bluetooth = true; }
   else watchBluetooth((on) => { S.bluetooth = on; banners(); });
   initLinks(worker, radio);
 
@@ -82,12 +85,18 @@ function gate(env) {
 }
 
 function seedSimRegistry() {
-  const people = [['Amir Hassan', 190, 'left_ear'], ['Kareem Saleh', 197, 'right_ear'], ['Omar Nasser', 192, 'forehead'], ['Omar Nasser', 192, 'back_of_head'], ['Yusuf Adel', 198, 'left_ear'], ['Bilal Farouk', 203, 'right_ear'], ['Tariq Mansour', null, 'forehead']];
+  // Up to 7: one athlete wears two sensors (forehead, and back of head in Max rate mode) and one has
+  // no max HR set, to show those cases. 8 to 10: a room of separate athletes, all in Polar mode.
+  const room = S.sim >= 8;
+  const people = room
+    ? [['Amir Hassan', 190, 'left_ear'], ['Kareem Saleh', 197, 'right_ear'], ['Omar Nasser', 192, 'forehead'], ['Leo Park', 194, 'left_ear'], ['Yusuf Adel', 198, 'left_ear'],
+      ['Bilal Farouk', 203, 'right_ear'], ['Tariq Mansour', 186, 'forehead'], ['Sam King', 196, 'back_of_head'], ['Dev Anand', 200, 'right_ear'], ['JT Cole', 188, 'left_ear']]
+    : [['Amir Hassan', 190, 'left_ear'], ['Kareem Saleh', 197, 'right_ear'], ['Omar Nasser', 192, 'forehead'], ['Omar Nasser', 192, 'back_of_head'], ['Yusuf Adel', 198, 'left_ear'], ['Bilal Farouk', 203, 'right_ear'], ['Tariq Mansour', null, 'forehead']];
   const reg = emptyRegistry();
   for (let i = 0; i < S.sim; i++) {
     const [name, maxHr, position] = people[i];
     const a = reg.athletes.find((x) => x.name === name) || upsertAthlete(reg, { name, maxHr });
-    upsertSensor(reg, SIM_IDS[i], { athleteId: a.id, position, mode: i === 3 ? 'max' : 'polar' });
+    upsertSensor(reg, SIM_IDS[i], { athleteId: a.id, position, mode: !room && i === 3 ? 'max' : 'polar' });
   }
   S.reg = reg; S.regSource = 'sim';
 }
@@ -135,6 +144,7 @@ function fillTargets() {
 
 // ---------- routing ----------
 const ctx = {
+  runDemo: () => runDemo(),
   toChecklist: () => (S.session ? go('live') : go('checklist')),
   home: () => go('home'),
   startSession: (label) => startSession(label),
@@ -169,6 +179,7 @@ function onChange(what) {
 // ---------- sessions ----------
 async function startSession(label) {
   if (S.session) { go('live'); return; }
+  if (S.sim && !label.startsWith('sim')) label = `sim-${label}`; // simulated sessions are named as such, wherever they are saved
   const drive = S.folder.permission === 'granted' ? S.folder.handle : null;
   S.session = { label, startPerf: performance.now(), startUnix: Date.now(), name: null };
   S.marks = []; S.gaps = []; S.hiddenWhileRecording = false;
@@ -177,6 +188,12 @@ async function startSession(label) {
   wake.start();
   log('info', `session started: ${label}`);
   go('live');
+}
+
+/** One click demo: start a session and connect every simulated sensor, no popups. */
+async function runDemo() {
+  await startSession('demo');
+  for (const id of S.reg.sensors.map((s) => s.deviceId)) { connectSim(id); await new Promise((r) => setTimeout(r, 400)); }
 }
 
 async function endSession() {
@@ -300,6 +317,7 @@ function header(t) {
 let lastBanners = '';
 function banners() {
   const list = [];
+  if (S.demo) list.push(['', 'Demo with simulated sensors. Nothing on this page talks to a real sensor yet.', `<span class="seg" role="group" aria-label="Number of sensors">${[1, 2, 4, 10].map((n) => `<a class="btn quiet" style="border:0;min-height:36px" href="?sim=${n}" aria-current="${n === S.sim}">${n} sensor${n > 1 ? 's' : ''}</a>`).join('')}</span>`]);
   if (S.update) list.push(['', S.session ? T.update.inSession : T.update.idle, S.session ? '' : `<button class="btn primary" data-b="reload">${T.update.reload}</button>`]);
   if (S.folder.handle && S.folder.permission === 'prompt') list.push(['warn', 'Saving to the Sa7a folder is paused until you allow it.', `<button class="btn primary" data-b="allow">${T.storage.allow}</button><span class="dim">${T.storage.allowHint}</span>`]);
   if (!S.sim && !S.bluetooth) list.push(['bad', say(T.errors.btOff), '']);
