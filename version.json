@@ -1,1 +1,35 @@
-{ "version": "0.0.1", "built": "2026-09-25" }
+{
+    "version":  "0.1.0",
+    "built":  "2026-09-25",
+    "files":  [
+                  "index.html",
+                  "app/styles.css",
+                  "app/views/help.js",
+                  "app/views/live.js",
+                  "app/views/monitor.js",
+                  "app/views/session.js",
+                  "app/views/timeline.js",
+                  "app/views/wizard.js",
+                  "app/draw.js",
+                  "app/links.js",
+                  "app/main.js",
+                  "app/state.js",
+                  "app/ui.js",
+                  "core/ble/device.js",
+                  "core/ble/gatt-parse.js",
+                  "core/pmd/constants.js",
+                  "core/pmd/decode.js",
+                  "core/pmd/encode.js",
+                  "core/sim/fake-sensor.js",
+                  "core/sim/models.js",
+                  "core/storage/folder.js",
+                  "core/storage/kv.js",
+                  "core/storage/zip.js",
+                  "core/capture-worker.js",
+                  "core/platform.js",
+                  "core/recorder.js",
+                  "core/registry.js",
+                  "core/version.js",
+                  "strings/en.js"
+              ]
+}
