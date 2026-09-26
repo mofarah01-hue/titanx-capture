@@ -50,8 +50,8 @@ function headerHTML(id, tile) {
 function kpisHTML(tile) {
   const tag = tile ? 'div' : 'button';
   return `<div class="kpis">
-    <${tag} class="kpi ours" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--z5)')}OUR HR</span><span class="kv"><span class="big num dash" data-k="ours">–</span></span><span class="zslot"><span class="pend">Our algorithm is not added yet</span></span></${tag}>
-    <${tag} class="kpi polar" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--polar)')}POLAR HR</span><span class="kbox"><span class="big num" data-k="polar"></span><span class="u" data-k="polarU"></span></span><span class="zslot" data-k="polarZ"></span></${tag}>
+    <${tag} class="kpi ours" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--z5)')}OUR HR</span><span class="kv"><span class="big num dash" data-k="ours">–</span><span class="u" data-k="oursU"></span></span><span class="zslot" data-k="oursZ"><span class="pend">Our algorithm is not added yet</span></span></${tag}>
+    <${tag} class="kpi polar" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--polar)')}REFERENCE HR</span><span class="kbox"><span class="big num" data-k="polar"></span><span class="u" data-k="polarU"></span></span><span class="zslot" data-k="polarZ"></span></${tag}>
     <${tag} class="kpi hrv" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heartline}HRV</span><span class="ks">RMSSD</span><span class="kv"><span class="big num" data-k="hrv"></span><span class="u" data-k="hrvU"></span></span></${tag}>
   </div>`;
 }
@@ -130,6 +130,17 @@ export function connText(e, st, t) {
 
 export function fillKpis(root2, e, st, t) {
   const hr = liveHr(e, t);
+  if (S.pitch) {
+    // Pitch screenshots only (?pitch=1 with simulated sensors): an illustrative number where our
+    // algorithm's HR will go. Never shown with real sensors.
+    const ours = hr != null ? Math.round(hr + 2.2 * Math.sin(t / 2.3 + e.id.charCodeAt(0))) : null;
+    const o = root2.querySelector('[data-k="ours"]');
+    if (o) {
+      setText(o, ours != null ? String(ours) : '--'); o.classList.toggle('dash', ours == null);
+      setText(root2.querySelector('[data-k="oursU"]'), ours != null ? 'bpm' : '');
+      setHTML(root2.querySelector('[data-k="oursZ"]'), ours != null ? zoneBadge(zoneFor(e.id, ours)) : '');
+    }
+  }
   setText(root2.querySelector('[data-k="polar"]'), hr != null ? String(hr) : e.mode === 'max' ? 'Off' : st === 'ok' ? '--' : 'No data');
   root2.querySelector('[data-k="polar"]').classList.toggle('wordy', hr == null);
   setText(root2.querySelector('[data-k="polarU"]'), hr != null ? 'bpm' : '');
@@ -168,7 +179,7 @@ export function refresh(t) {
       }
     }
   }
-  if (layout === 'n7') drawStrip($('#strip', root), cards.map((c) => { const e = S.links.get(c.id); return { label: `${athleteName(c.id).split(' ')[0]} · ${T.positions[positionOf(c.id)] || c.id.slice(-4)}`, hrBuf: e?.data.hr || { t: [], v: [] }, maxMode: e?.mode === 'max', athleteId: infoOf(c.id).athlete?.id, zoneOf: (hr) => zoneFor(c.id, hr) }; }), S.marks, t);
+  if (layout === 'n7') drawStrip($('#strip', root), cards.map((c) => { const e = S.links.get(c.id); return { label: `${athleteName(c.id).split(' ')[0]} · ${T.positions[positionOf(c.id)] || c.id.slice(-4)}`, hrBuf: e?.data.hr || { t: [], v: [] }, firstT: e?.data.firstT ?? null, maxMode: e?.mode === 'max', athleteId: infoOf(c.id).athlete?.id, zoneOf: (hr) => zoneFor(c.id, hr) }; }), S.marks, t);
 }
 
 /** Every frame: trace lanes of full panels. */

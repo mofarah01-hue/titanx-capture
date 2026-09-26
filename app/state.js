@@ -46,6 +46,7 @@ export function newData() {
     ppg: new Buf(20, 4), ppgf: new Buf(20, 4), acc: new Buf(20, 3), gyro: new Buf(20, 3), mag: new Buf(20, 3),
     accMag: new Buf(20, 1), gyroMag: new Buf(20, 1),   // |xyz|, what the overview lanes draw
     hr: new Buf(0, 1), ppi: new Buf(600, 1),
+    firstT: null,                                       // session time of this sensor's first sample
     move: new Buf(0, 1),                                // whole session: mean ||a| - 1 g| per second, for the timeline
   };
 }
@@ -75,6 +76,7 @@ function filterPpg(e, t, v, ch) {
 export function ingest(e, m) {
   for (const [k, d] of Object.entries(m.data)) {
     const b = e.data[k]; if (!b) continue;
+    if (d.t.length && (e.data.firstT == null || d.t[0] < e.data.firstT)) e.data.firstT = d.t[0];
     b.add(d.t, d.v, d.ch);
     if (k === 'ppg') e.data.ppgf.add(d.t, filterPpg(e, d.t, d.v, d.ch), d.ch);
     if (k === 'gyro' && d.ch >= 3) e.data.gyroMag.add(d.t, magnitudes(d.t, d.v, d.ch), 1);

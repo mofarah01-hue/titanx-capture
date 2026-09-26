@@ -95,7 +95,7 @@ export function drawLane(c, spec, t, pins = []) {
   }
 }
 
-/** 60 s of heart rate (Polar dashed), or 3 s of raw PPG for a sensor in Max rate mode. */
+/** 60 s of reference heart rate (dashed), or 3 s of raw PPG for a sensor in Max rate mode. */
 export function drawSpark(c, hrBuf, ppgBuf, maxMode, t) {
   const { ctx, w, h } = fit(c); ctx.clearRect(0, 0, w, h);
   ctx.font = `600 10px ${C.font}`; ctx.textBaseline = 'top'; ctx.fillStyle = C.dim;
@@ -108,7 +108,7 @@ export function drawSpark(c, hrBuf, ppgBuf, maxMode, t) {
     for (let i = i0; i < ppgBuf.t.length; i++) { const x = (ppgBuf.t[i] - (t - 3)) / 3 * w, y = 14 + (1 - (ppgBuf.v[i * ppgBuf.ch] - mn) / (mx - mn || 1)) * (h - 16); i === i0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
     ctx.strokeStyle = C.ppg; ctx.lineWidth = 1.3; ctx.stroke(); return;
   }
-  ctx.fillText('POLAR HR · LAST 60 S', 0, 0);
+  ctx.fillText('REFERENCE HR · LAST 60 S', 0, 0);
   const i0 = lowerBound(hrBuf.t, t - 60);
   if (hrBuf.t.length - i0 < 1) { ctx.fillText('No heart rate in the last 60 s', 0, 20); return; }
   let mn = Infinity, mx = -Infinity; for (let i = i0; i < hrBuf.t.length; i++) { mn = Math.min(mn, hrBuf.v[i]); mx = Math.max(mx, hrBuf.v[i]); }
@@ -135,8 +135,9 @@ export function drawStrip(c, rows, marks, t) {
   rows.forEach((r, i) => {
     const y = top + i * (rowH + gap), x0 = X(0), x1 = X(Math.max(0, t));
     ctx.textAlign = 'left'; ctx.fillStyle = C.text; ctx.fillText(r.label, 0, y + rowH / 2);
-    ctx.fillStyle = C.bg2; ctx.fillRect(x0, y, x1 - x0, rowH); ctx.fillStyle = hatch(ctx, C.faint); ctx.fillRect(x0, y, x1 - x0, rowH);
-    if (r.maxMode) { ctx.fillStyle = C.dim; ctx.fillText('Max rate mode, raw streams only', x0 + 6, y + rowH / 2 + 0.5); return; }
+    const xs = r.firstT == null ? x1 : Math.max(x0, X(r.firstT)); // before a sensor joined there is nothing to show, not a gap
+    if (xs < x1) { ctx.fillStyle = C.bg2; ctx.fillRect(xs, y, x1 - xs, rowH); ctx.fillStyle = hatch(ctx, C.faint); ctx.fillRect(xs, y, x1 - xs, rowH); }
+    if (r.maxMode) { if (xs < x1) { ctx.fillStyle = C.dim; ctx.fillText('Max rate mode, raw streams only', xs + 6, y + rowH / 2 + 0.5); } return; }
     const b = r.hrBuf; let j = 0;
     for (let px = Math.floor(x0); px < x1; px++) {
       const tt = (px + 0.5 - L) / (w - L - R) * T;
@@ -155,7 +156,7 @@ export function drawStrip(c, rows, marks, t) {
 }
 
 /**
- * Session timeline: a lane per sensor on one time axis. Polar HR dashed, zone ribbon, movement
+ * Session timeline: a lane per sensor on one time axis. Reference HR dashed, zone ribbon, movement
  * strip from ACC, hatched gaps with a label, event pins with text.
  * rows: [{ name, sub, mode, hrBuf, accBuf, zoneOf, athleteId, gaps: [{from, to, text}] }]
  */
@@ -189,7 +190,7 @@ export function drawTimeline(c, rows, marks, t, zoom) {
       }
       ctx.globalAlpha = 1;
     }
-    if (r.mode === 'max') { ctx.fillStyle = hatch(ctx, C.faint); ctx.fillRect(X(t0), y, X(Math.min(t, t1)) - X(t0), laneH); ctx.fillStyle = C.dim; ctx.font = `600 12px ${F}`; ctx.fillText('Polar HR is off in Max rate mode. Our HR will draw here.', X(t0) + 8, y + laneH / 2); }
+    if (r.mode === 'max') { const xs = X(Math.max(t0, r.firstT ?? t)); if (xs < X(Math.min(t, t1))) { ctx.fillStyle = hatch(ctx, C.faint); ctx.fillRect(xs, y, X(Math.min(t, t1)) - xs, laneH); ctx.fillStyle = C.dim; ctx.font = `600 12px ${F}`; ctx.fillText('Reference HR is off in Max rate mode. Our HR will draw here.', xs + 8, y + laneH / 2); } }
     else {
       const b = r.hrBuf; const i0 = lowerBound(b.t, t0);
       ctx.beginPath(); let last = -Infinity;

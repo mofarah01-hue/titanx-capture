@@ -26,6 +26,10 @@ S.sim = Math.max(0, Math.min(10, parseInt(params.get('sim') || '0', 10) || 0));
 S.demo = PAGES_DEMO && location.hostname.endsWith('github.io');
 if (S.demo && !S.sim) S.sim = 2;
 S.debug = params.get('debug') === '1';
+// Pitch screenshots: ?pitch=1 (simulated sensors only) hides development chrome and shows an
+// illustrative Our HR. tools/shots.mjs uses it.
+S.pitch = S.sim > 0 && params.get('pitch') === '1';
+if (S.pitch) document.documentElement.classList.add('pitch');
 const CKPT_S = parseInt(params.get('ckpt') || '', 10) || undefined; // tests only: Drive copy interval in seconds (default 300)
 
 let worker, wake, W = {};
