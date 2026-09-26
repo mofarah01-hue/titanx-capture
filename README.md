@@ -3,7 +3,8 @@
 Research capture dashboard for Polar Verity Sense optical HR sensors worn in combat sports headgear (Sa7a Labs, Titan X). It is a web page: open it in Chrome, click Connect, and it records. No install, no accounts, no backend, no telemetry.
 
 - Live link: `https://mofarah01-hue.github.io/titanx-capture/`. Until the Phase 1 release it is a **demo**: simulated sensors only, never a real one (`PAGES_DEMO` in `core/version.js`)
-- Simulator: add `?sim=3` to the link (1 to 7 fake sensors, everything works as with real ones). Run the demo connects them all in one click
+- Simulator: add `?sim=3` to the link (1 to 10 fake sensors, everything works as with real ones). Run the demo connects them all in one click
+- Pitch screenshots: `node tools/shots.mjs` (uses `?pitch=1`: no development chrome, illustrative Titan X HR)
 - First run again: add `?setup=reset` (clears saved settings, never recordings)
 
 For the remote user: [QUICKSTART.md](QUICKSTART.md). For the first real session on the Mac: [MAC_FIRST_RUN.md](MAC_FIRST_RUN.md).
@@ -18,7 +19,8 @@ For the remote user: [QUICKSTART.md](QUICKSTART.md). For the first real session 
 | Decoding | Every PMD frame type Polar's SDK decodes, tested against Polar's own SDK test vectors (84 unit tests) |
 | Timing | Sensor timestamps kept; session time from one monotonic clock; lost packets detected from timestamps, logged, never filled in; measured rates shown and recorded |
 | Recording | Starts on connect. Rows flushed every second to Chrome's private storage (crash safe), Drive folder gets marks and manifest at once, part files every 5 minutes, one zip at the end. Unfinished sessions are recovered on the next launch |
-| Views | Athlete panels (1 to 4 sensors), tiles plus session strip (5 to 7), full monitor per sensor, session timeline, events with pins across lanes |
+| Views | Athlete panels (1 to 4 sensors), tiles plus session strip (5 to 10), full monitor per sensor, session timeline, events with pins across lanes |
+| Training plans | Plan tab with example plans (Low, Mid, High intensity). Each phase sets a target zone; every athlete shows On target (green), Work harder (yellow) or Slow down (red) from their own max HR. Every phase change is saved to annotations.json with its target zones: labels for coaching models |
 | Remote user | Setup wizard (8 steps, auto ticks), help drawer (10 entries, search), pre session checklist, end of session screen with Download fallback, debug bundle, Chrome gate, update banner, wake lock, hidden window warning |
 
 ## Not proven yet

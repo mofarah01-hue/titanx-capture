@@ -2,15 +2,19 @@
 // panels with two lanes, 5 or more get compact tiles plus the session strip. Every panel and tile
 // opens the full monitor.
 import T from '../../strings/en.js';
-import { S, slotIds, slotState, liveHr, zoneFor, infoOf, athleteName, positionOf, now } from '../state.js';
+import { S, slotIds, slotState, liveHr, zoneFor, infoOf, athleteName, positionOf, planTarget, now } from '../state.js';
+import { STATUS, current } from '../../core/plans.js';
+import { zoneText, planClock } from './plan.js';
 import { ICO, headSVG, battHTML, zoneBadge, esc, el, setHTML, setText, $, $$, fmtMS } from '../ui.js';
 import { drawLane, drawSpark, drawStrip } from '../draw.js';
 import { connect, retry, reconnect } from '../links.js';
 
 let root = null, cards = [], layout = '';
-export function mountLive(container, openMonitor) {
+/** planCtx: { next(), stop() } for the plan bar. */
+export function mountLive(container, openMonitor, planCtx) {
   root = container;
-  root.innerHTML = `<div class="strip" id="stripWrap" hidden><div class="strip-h"><span>SESSION SO FAR · ZONE PER SENSOR · PINS ARE EVENTS</span><span class="legend"><span><i class="hatch"></i>No data, never filled in</span></span></div><canvas id="strip" aria-label="Session so far, heart rate zone per sensor"></canvas></div><div class="live" id="live"></div>`;
+  root._plan = planCtx;
+  root.innerHTML = `<div data-k="planbar"></div><div class="strip" id="stripWrap" hidden><div class="strip-h"><span>SESSION SO FAR · ZONE PER SENSOR · PINS ARE EVENTS</span><span class="legend"><span><i class="hatch"></i>No data, never filled in</span></span></div><canvas id="strip" aria-label="Session so far, heart rate zone per sensor"></canvas></div><div class="live" id="live"></div>`;
   root._open = openMonitor;
   rebuild();
 }
@@ -44,14 +48,15 @@ function headerHTML(id, tile) {
   return `<header class="ap-h">
     ${tile ? `<div class="ap-name">${name}</div>` : `<button class="ap-name" data-open aria-label="Open full monitor for ${esc(athleteName(id))}">${name}</button>`}
     <div class="ap-meta"><span class="pos">${headSVG(pos ? [pos] : [], 22)}${pos ? T.positions[pos] : 'Position not set'}</span><span class="conn" data-k="conn"><i></i><span></span></span><span class="batt" data-k="batt"></span></div>
-  </header>`;
+  </header>
+  <div class="tbar" data-k="tbar" hidden></div>`;
 }
 
 function kpisHTML(tile) {
   const tag = tile ? 'div' : 'button';
   return `<div class="kpis">
-    <${tag} class="kpi ours" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--z5)')}OUR HR</span><span class="kv"><span class="big num dash" data-k="ours">–</span><span class="u" data-k="oursU"></span></span><span class="zslot" data-k="oursZ"><span class="pend">Our algorithm is not added yet</span></span></${tag}>
-    <${tag} class="kpi polar" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--polar)')}REFERENCE HR</span><span class="kbox"><span class="big num" data-k="polar"></span><span class="u" data-k="polarU"></span></span><span class="zslot" data-k="polarZ"></span></${tag}>
+    <${tag} class="kpi ours" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--z5)')}${T.hr.ours}</span><span class="kv"><span class="big num dash" data-k="ours">–</span><span class="u" data-k="oursU"></span></span><span class="zslot" data-k="oursZ"><span class="pend">${T.hr.oursPending}</span></span></${tag}>
+    <${tag} class="kpi polar" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--polar)')}${T.hr.ref}</span><span class="kbox"><span class="big num" data-k="polar"></span><span class="u" data-k="polarU"></span></span><span class="zslot" data-k="polarZ"></span></${tag}>
     <${tag} class="kpi hrv" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heartline}HRV</span><span class="ks">RMSSD</span><span class="kv"><span class="big num" data-k="hrv"></span><span class="u" data-k="hrvU"></span></span></${tag}>
   </div>`;
 }
@@ -152,12 +157,45 @@ export function fillKpis(root2, e, st, t) {
   setText(root2.querySelector('[data-k="hrvU"]'), hv != null ? 'ms' : '');
 }
 
+/** The running plan across the top of the live view. Rebuilt only when the phase changes, so its
+ *  buttons stay the same elements (a click never lands on a replaced button); the countdown updates in place. */
+function planBar(t) {
+  const box = root.querySelector('[data-k="planbar"]'), ph = current(S.plan, t);
+  const key = !S.plan ? '' : !ph ? `done:${S.plan.name}` : `${S.plan.name}:${ph.index}`;
+  if (box._key !== key) {
+    box._key = key;
+    box.innerHTML = !S.plan ? ''
+      : !ph ? `<div class="planbar"><b>${esc(S.plan.name)}</b><span>${T.plan.finished}</span><span class="spacer"></span><button class="btn" data-stop>${T.plan.stop}</button></div>`
+      : `<div class="planbar" style="--zc:var(--z${ph.zone[1]})"><span class="eyebrow">PLAN</span><b>${esc(S.plan.name)}</b><span class="ph">${esc(ph.name)} <span class="dim">· phase ${ph.index + 1} of ${ph.count}</span></span>
+         <span class="tgt">TARGET ${zoneText(ph.zone).toUpperCase()}</span><span class="left" data-k="left"></span>
+         ${ph.next ? `<span class="dim">Next: ${esc(ph.next.name)}, ${zoneText(ph.next.zone).toLowerCase()}</span>` : ''}<span class="spacer"></span>
+         <button class="btn" data-next>${T.plan.next}</button><button class="btn" data-stop>${T.plan.stop}</button></div>`;
+    box.querySelector('[data-next]')?.addEventListener('click', () => root._plan?.next());
+    box.querySelector('[data-stop]')?.addEventListener('click', () => root._plan?.stop());
+  }
+  if (ph) setText(box.querySelector('[data-k="left"]'), planClock(ph.left));
+}
+
+/** Status bar under a card header: work harder, on target or slow down against the plan's target. */
+function targetBar(c, e, t) {
+  const bar = c.el.querySelector('[data-k="tbar"]'), pt = S.plan && e ? planTarget(e, t) : null;
+  if (!pt) { bar.hidden = true; delete c.el.dataset.status; return; }
+  bar.hidden = false;
+  if (!pt.status) { c.el.dataset.status = 'none'; setHTML(bar, `<span>${pt.why === 'noMax' ? T.plan.noMax : T.plan.noHr}</span><span class="dim">Target ${zoneText(pt.phase.zone).toLowerCase()}</span>`); bar.dataset.s = 'none'; return; }
+  c.el.dataset.status = pt.status; bar.dataset.s = pt.status;
+  const range = pt.bpm ? ` · ${pt.bpm[0]} to ${pt.bpm[1]} bpm` : '';
+  const zNow = pt.zone === 0 ? 'below Z1' : `Z${pt.zone}`;
+  setHTML(bar, `<b>${STATUS[pt.status].icon} ${T.plan.status[pt.status].toUpperCase()}</b><span>${c.tile ? `${zNow} now, target ${pt.phase.zone[0] === pt.phase.zone[1] ? `Z${pt.phase.zone[0]}` : `Z${pt.phase.zone[0]} to ${pt.phase.zone[1]}`}` : `Now ${pt.zone === 0 ? 'below zone 1' : `zone ${pt.zone}`} · target ${zoneText(pt.phase.zone).toLowerCase()}${range}`}</span>`);
+}
+
 /** 4 Hz: numbers, states, step logs, sparklines, strip. */
 export function refresh(t) {
   if (!root) return;
+  planBar(t);
   for (const c of cards) {
     const e = S.links.get(c.id), st = slotState(e, t);
     c.el.dataset.state = st;
+    targetBar(c, e, t);
     body(c, st);
     const [cls, txt] = connText(e, st, t);
     const cn = c.el.querySelector('[data-k="conn"]'); cn.className = `conn ${cls}`; setText(cn.lastElementChild, txt);

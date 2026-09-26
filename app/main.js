@@ -18,6 +18,8 @@ import * as mon from './views/monitor.js';
 import * as tl from './views/timeline.js';
 import * as wiz from './views/wizard.js';
 import * as ses from './views/session.js';
+import * as planView from './views/plan.js';
+import { startRun, advance, skip } from '../core/plans.js';
 import { openHelp } from './views/help.js';
 
 const params = new URLSearchParams(location.search);
@@ -93,9 +95,9 @@ function seedSimRegistry() {
   // no max HR set, to show those cases. 8 to 10: a room of separate athletes, all in Polar mode.
   const room = S.sim >= 8;
   const people = room
-    ? [['Amir Hassan', 190, 'left_ear'], ['Kareem Saleh', 197, 'right_ear'], ['Omar Nasser', 192, 'forehead'], ['Leo Park', 194, 'left_ear'], ['Yusuf Adel', 198, 'left_ear'],
-      ['Bilal Farouk', 203, 'right_ear'], ['Tariq Mansour', 186, 'forehead'], ['Sam King', 196, 'back_of_head'], ['Dev Anand', 200, 'right_ear'], ['JT Cole', 188, 'left_ear']]
-    : [['Amir Hassan', 190, 'left_ear'], ['Kareem Saleh', 197, 'right_ear'], ['Omar Nasser', 192, 'forehead'], ['Omar Nasser', 192, 'back_of_head'], ['Yusuf Adel', 198, 'left_ear'], ['Bilal Farouk', 203, 'right_ear'], ['Tariq Mansour', null, 'forehead']];
+    ? [['John Smith', 190, 'left_ear'], ['Emily Carter', 197, 'right_ear'], ['Mike Parsons', 192, 'forehead'], ['Jessica Moore', 194, 'left_ear'], ['Chris Johnson', 198, 'left_ear'],
+      ['Sarah Miller', 203, 'right_ear'], ['David Brown', 186, 'forehead'], ['Ashley Davis', 196, 'back_of_head'], ['Ryan Wilson', 200, 'right_ear'], ['Megan Taylor', 188, 'left_ear']]
+    : [['John Smith', 190, 'left_ear'], ['Emily Carter', 197, 'right_ear'], ['Mike Parsons', 192, 'forehead'], ['Mike Parsons', 192, 'back_of_head'], ['Jessica Moore', 198, 'left_ear'], ['Chris Johnson', 203, 'right_ear'], ['Sarah Miller', null, 'forehead']];
   const reg = emptyRegistry();
   for (let i = 0; i < S.sim; i++) {
     const [name, maxHr, position] = people[i];
@@ -111,7 +113,7 @@ function shell() {
   document.body.append(el(`<div class="app">
     <header class="top">
       <div class="brand"><span class="tx">TITAN X</span><span class="sep"></span><span class="sub">SA7A LABS</span>${S.sim ? '<span class="simtag">SIMULATED</span>' : ''}
-        <span class="views" role="group" aria-label="View"><button data-view="live">Live</button><button data-view="timeline">Timeline</button></span></div>
+        <span class="views" role="group" aria-label="View"><button data-view="live">Live</button><button data-view="timeline">Timeline</button><button data-view="plan">${T.plan.tab}</button></span></div>
       <div class="rec idle" id="rec"><i class="dot" aria-hidden="true"></i><span class="clock" id="clock">00:00:00</span><span class="rec-l" id="recl">NOT RECORDING</span></div>
       <div class="hright">
         <button class="store" id="store" title="Save folder">${ICO.cloud}<span><b id="storeName">Sa7a Drive</b> <span class="dim" id="storeTxt"></span></span></button>
@@ -147,6 +149,7 @@ function fillTargets() {
 }
 
 // ---------- routing ----------
+const planCtx = { start: (p) => startPlan(p), next: () => nextPhase(), stop: () => stopPlan() };
 const ctx = {
   runDemo: () => runDemo(),
   toChecklist: () => (S.session ? go('live') : go('checklist')),
@@ -161,9 +164,10 @@ function go(view, arg) {
   S.view = view; S.noAutoRecord = view === 'wizard';
   const box = document.createElement('div');
   $('#main').replaceChildren(box);
-  if (view === 'live') live.mountLive(box, (id) => go('monitor', id));
+  if (view === 'live') live.mountLive(box, (id) => go('monitor', id), planCtx);
   else if (view === 'monitor') mon.mountMonitor(box, arg, () => go('live'));
   else if (view === 'timeline') tl.mountTimeline(box);
+  else if (view === 'plan') planView.mountPlan(box, planCtx);
   else if (view === 'wizard') wiz.mountWizard(box, { W, save: (w) => kvSet('wizard', w), pickFolder: wizardPick, createListHere, connectTest: () => connect(null), startSession: () => go(S.session ? 'live' : 'checklist') });
   else if (view === 'checklist') ses.mountChecklist(box, ctx);
   else if (view === 'end') ses.mountEnd(box, ctx);
@@ -186,12 +190,53 @@ async function startSession(label) {
   if (S.sim && !label.startsWith('sim')) label = `sim-${label}`; // simulated sessions are named as such, wherever they are saved
   const drive = S.folder.permission === 'granted' ? S.folder.handle : null;
   S.session = { label, startPerf: performance.now(), startUnix: Date.now(), name: null };
-  S.marks = []; S.gaps = []; S.hiddenWhileRecording = false;
+  S.marks = []; S.gaps = []; S.hiddenWhileRecording = false; S.plan = null; S.phases = [];
   for (const e of S.links.values()) { e.data = newData(); e.ppgFilter = null; e.moveAcc = null; if (e.linkState?.state === 'streaming') e.streamingSince = now(); }
   worker.postMessage({ type: 'session-start', label, startedUnixMs: S.session.startUnix, drive, app: appInfo(), registry: S.sim ? null : S.reg, checkpointS: CKPT_S });
   wake.start();
   log('info', `session started: ${label}`);
   go('live');
+}
+
+// ---------- training plan ----------
+// Every phase change goes into annotations.json with its target zones and the newest sample index
+// of every stream: ready made labels for training coaching models.
+function planMark(extra, t) {
+  worker.postMessage({ type: 'mark', mark: { t, wall: new Date().toISOString(), target: 'all', target_name: 'all athletes', plan: S.plan?.name, ...extra } });
+}
+function enterPhase(p, at) {
+  const open = S.phases.at(-1); if (open && open.to == null) open.to = at;
+  S.phases.push({ from: at, to: null, name: p.name, zone: p.zone });
+  planMark({ kind: 'phase', label: 'Phase', text: `${p.name}, target ${planView.zoneText(p.zone).toLowerCase()}`, phase_index: p.index, target_zones: p.zone, planned_s: Number.isFinite(p.s) ? p.s : null }, at);
+}
+async function startPlan(plan) {
+  if (!S.session) await startSession(plan.name.toLowerCase());
+  if (S.plan) stopPlan(true);
+  const t = now();
+  S.plan = startRun(plan, t);
+  planMark({ kind: 'plan', label: 'Plan', text: `${plan.name} started` }, t);
+  enterPhase({ ...S.plan.phases[0], index: 0 }, t);
+  toast(`${plan.name} started. ${S.plan.phases[0].name}: target ${planView.zoneText(S.plan.phases[0].zone).toLowerCase()}.`);
+  go('live');
+}
+function tickPlan(t) {
+  if (!S.plan || S.plan.finishedLogged) return;
+  for (const p of advance(S.plan, t)) enterPhase(p, p.at);
+  if (S.plan.done) {
+    S.plan.finishedLogged = true;
+    const open = S.phases.at(-1); if (open && open.to == null) open.to = S.plan.phaseStart;
+    planMark({ kind: 'plan', label: 'Plan', text: `${S.plan.name} finished` }, S.plan.phaseStart);
+    toast(`${S.plan.name} finished.`);
+  }
+}
+function nextPhase() { if (!S.plan) return; for (const p of skip(S.plan, now())) enterPhase(p, p.at); tickPlan(now()); }
+function stopPlan(quiet = false) {
+  if (!S.plan) return;
+  const t = now(), open = S.phases.at(-1);
+  if (open && open.to == null) open.to = t;
+  if (!S.plan.finishedLogged) planMark({ kind: 'plan', label: 'Plan', text: `${S.plan.name} stopped` }, t);
+  if (!quiet) toast(`${S.plan.name} stopped.`);
+  S.plan = null;
 }
 
 /** One click demo: start a session and connect every simulated sensor, no popups. */
@@ -209,6 +254,7 @@ async function endSession() {
   });
   if (!yes) return;
   toast('Saving the session. This takes a few seconds.', 8000);
+  if (S.plan) stopPlan(true);
   await disconnectAll();
   const summary = await ask({ type: 'session-end' }, 'ended');
   S.summary = summary; S.session = null; wake.stop();
@@ -359,9 +405,11 @@ function tick() {
   const t = now();
   header(t);
   trackLinkGaps();
+  tickPlan(t);
   if (S.view === 'live') live.refresh(t);
   else if (S.view === 'monitor') mon.refreshMonitor(t);
   else if (S.view === 'timeline') tl.refreshTimeline(t);
+  else if (S.view === 'plan') planView.refreshPlan(t);
   else if (S.view === 'wizard') wiz.refreshWizard();
   else ses.refreshSession();
   banners();

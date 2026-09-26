@@ -120,6 +120,27 @@ export default {
     unknown: 'New sensor. Pick the athlete and head position so the app remembers it.',
   },
 
+  hr: { ours: 'TITAN X HR', oursPending: 'Titan X HR algorithm not added yet', ref: 'REFERENCE HR' },
+
+  plan: {
+    tab: 'Plan',
+    title: 'Training plan',
+    intro: "Pick a plan. Each phase sets a target heart rate zone for everyone, worked out from each athlete's own max HR. The live view then shows at a glance who should work harder, who is on target, and who should slow down.",
+    status: { on: 'On target', below: 'Work harder', above: 'Slow down' },
+    intensity: { low: 'Low', mid: 'Mid', high: 'High' },
+    zonesOf: { low: 'Zones 1 to 2', mid: 'Zone 3', high: 'Zones 4 to 5' },
+    start: 'Start this plan',
+    startSession: 'Start a session with this plan',
+    next: 'Next phase',
+    stop: 'Stop plan',
+    running: 'Running now',
+    finished: 'Plan finished',
+    hold: 'Or hold everyone in one zone until you stop it',
+    untilStopped: 'until stopped',
+    noMax: 'No max HR set',
+    noHr: 'No live HR',
+  },
+
   positions: { left_ear: 'Left ear', right_ear: 'Right ear', forehead: 'Forehead', back_of_head: 'Back of head' },
   modes: {
     polar: 'Polar mode', max: 'Max rate mode',

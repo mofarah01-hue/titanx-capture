@@ -1,6 +1,7 @@
 // App state and the derived facts the views show. Views read from here; the worker and the links
 // write into it. Nothing here touches the DOM.
 import { sensorInfo, maxHrOf, zoneOf, emptyRegistry } from '../core/registry.js';
+import { current, targetStatus, zoneBpm } from '../core/plans.js';
 
 export const bus = new EventTarget();
 export const emit = (what) => bus.dispatchEvent(new CustomEvent('change', { detail: what }));
@@ -14,6 +15,8 @@ export const S = {
   summary: null,                 // result of the last ended session
   links: new Map(),              // deviceId -> entry (see links.js)
   marks: [],                     // this session: { t, label, text, target, who }
+  plan: null,                    // running training plan (core/plans.js startRun), or null
+  phases: [],                    // this session's plan phases for the timeline: { from, to, name, zone }
   view: 'home', monitorId: null, tlZoom: 'all',
   appT0: performance.now(),
   update: null, hiddenWhileRecording: false, bluetooth: true, wake: false, degraded: false,
@@ -140,6 +143,15 @@ export function trustOf(e, t = now()) {
   if (!worst) return { level: 'High', cls: 'ok', why: 'Rates on target, nothing lost' };
   const top = issues.find((i) => i[0] === worst);
   return worst === 1 ? { level: 'Medium', cls: 'warn', why: top[1] } : { level: 'Low', cls: 'bad', why: top[1] };
+}
+
+/** Where one athlete stands against the running plan's target, or null when no plan runs. */
+export function planTarget(e, t = now()) {
+  const ph = current(S.plan, t);
+  if (!ph || !e) return null;
+  const max = maxHrFor(e.id), hr = liveHr(e, t);
+  const zone = max && hr != null ? zoneOf(hr, max) : null;
+  return { phase: ph, zone, status: targetStatus(zone, ph.zone), bpm: zoneBpm(ph.zone, max), why: !max ? 'noMax' : hr == null ? 'noHr' : null };
 }
 
 /** Slots in the live view: every registered sensor, then connected sensors nobody registered. */

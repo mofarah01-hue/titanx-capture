@@ -82,7 +82,7 @@ test('a sim session records every stream, logs gaps, and reaches the Drive folde
 
   await page.waitForTimeout(8000);
   await page.getByRole('button', { name: 'Heavy', exact: true }).click();
-  await page.selectOption('#mTarget', { label: 'Amir Hassan' });
+  await page.selectOption('#mTarget', { label: 'John Smith' });
   await page.locator('#mNote').fill('strap tightened');
   await page.getByRole('button', { name: 'Adjusted', exact: true }).click();
   await page.selectOption('#mTarget', { value: 'all' });
@@ -126,9 +126,9 @@ test('a sim session records every stream, logs gaps, and reaches the Drive folde
 
   // Requirement: one file per stream per device, named <deviceId>_<athlete>_<stream>.csv.
   const f = (id, who, s) => join(dir, `${id}_${who}_${s}.csv`);
-  for (const s of ['ppg', 'acc', 'gyro', 'mag', 'frames', 'hr', 'ppi']) expect(existsSync(f(AMIR, 'Amir-Hassan', s)), s).toBe(true);
-  for (const s of ['ppg', 'acc', 'gyro', 'mag', 'frames']) expect(existsSync(f(OMAR_BACK, 'Omar-Nasser', s)), s).toBe(true);
-  expect(existsSync(f(OMAR_BACK, 'Omar-Nasser', 'ppi')), 'no PPI in Max rate mode').toBe(false);
+  for (const s of ['ppg', 'acc', 'gyro', 'mag', 'frames', 'hr', 'ppi']) expect(existsSync(f(AMIR, 'John-Smith', s)), s).toBe(true);
+  for (const s of ['ppg', 'acc', 'gyro', 'mag', 'frames']) expect(existsSync(f(OMAR_BACK, 'Mike-Parsons', s)), s).toBe(true);
+  expect(existsSync(f(OMAR_BACK, 'Mike-Parsons', 'ppi')), 'no PPI in Max rate mode').toBe(false);
 
   // Requirement: measured rates are recorded, and match what the sensor was asked for (sim truth).
   for (const d of manifest.devices) {
@@ -142,7 +142,7 @@ test('a sim session records every stream, logs gaps, and reaches the Drive folde
 
   // Requirement: never interpolate across a gap. No sample is ever closer than half a period to the
   // previous one; the lossy sensor has real holes, and they are listed in the manifest.
-  for (const [id, who, fs, lossy] of [[AMIR, 'Amir-Hassan', 55, false], [OMAR_BACK, 'Omar-Nasser', 176, true]]) {
+  for (const [id, who, fs, lossy] of [[AMIR, 'John-Smith', 55, false], [OMAR_BACK, 'Mike-Parsons', 176, true]]) {
     const rows = csv(f(id, who, 'ppg'));
     const ts = rows.map((r) => BigInt(r.t_sensor_ns));
     let holes = 0;
@@ -164,7 +164,7 @@ test('a sim session records every stream, logs gaps, and reaches the Drive folde
   expect(adjusted.text).toBe('strap tightened');
   expect(Object.keys(adjusted.newest_sample_index).every((k) => k.startsWith(AMIR))).toBe(true);
   for (const m of ann) {
-    for (const [id, who] of [[AMIR, 'Amir-Hassan'], [OMAR_BACK, 'Omar-Nasser']]) {
+    for (const [id, who] of [[AMIR, 'John-Smith'], [OMAR_BACK, 'Mike-Parsons']]) {
       const idx = m.newest_sample_index[`${id}.ppg`]; if (idx == null) continue;
       const row = csv(f(id, who, 'ppg'))[idx];
       expect(Number(row.i)).toBe(idx);
@@ -175,10 +175,10 @@ test('a sim session records every stream, logs gaps, and reaches the Drive folde
   }
 
   // Requirement: Polar HR and PPI are recorded in Polar mode.
-  const hr = csv(f(AMIR, 'Amir-Hassan', 'hr'));
+  const hr = csv(f(AMIR, 'John-Smith', 'hr'));
   expect(hr.length).toBeGreaterThan(30);
   expect(hr.every((r) => +r.hr_bpm >= 40 && +r.hr_bpm <= 220)).toBe(true);
-  const ppi = csv(f(AMIR, 'Amir-Hassan', 'ppi'));
+  const ppi = csv(f(AMIR, 'John-Smith', 'ppi'));
   expect(ppi.length).toBeGreaterThan(5);
   expect(ppi.every((r) => +r.pp_ms >= 250 && +r.pp_ms <= 2000)).toBe(true);
 });
@@ -195,7 +195,7 @@ test('a session the app never ended is recovered into the Drive folder on the ne
   const dir = await extractFromDrive(page, zipPath, 'recovered');
   const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
   expect(manifest.recovered).toBeTruthy();
-  const rows = csv(join(dir, 'C8A1B2E4_Amir-Hassan_ppg.csv'));
+  const rows = csv(join(dir, 'C8A1B2E4_John-Smith_ppg.csv'));
   expect(rows.length, 'rows saved up to about a second before the tab died').toBeGreaterThan(8 * 55);
 });
 

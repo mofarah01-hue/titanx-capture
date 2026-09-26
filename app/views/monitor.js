@@ -17,8 +17,8 @@ function specs(e) {
     { key: 'acc', name: 'ACC', unit: 'g', legend: xyz('acc'), icon: 'acc', range: [-2.5, 2.5], ticks: [-2, 0, 2], series: [0, 1, 2].map((ch) => ({ buf: d.acc, ch, color: ['acc', 'acc2', 'acc3'][ch], lw: 1.1, map: g() })) },
     { key: 'gyro', name: 'GYRO', unit: 'deg/s', legend: xyz('gyro'), icon: 'gyro', auto: true, minSpan: 60, series: [0, 1, 2].map((ch) => ({ buf: d.gyro, ch, color: ['gyro', 'gyro2', 'gyro3'][ch], lw: 1.1 })) },
     { key: 'mag', name: 'MAG', unit: 'µT', legend: xyz('mag'), icon: 'mag', range: [-70, 70], ticks: [-50, 0, 50], series: [0, 1, 2].map((ch) => ({ buf: d.mag, ch, color: ['mag', 'mag2', 'mag3'][ch], lw: 1.2, map: (v) => v * 100 })), empty: 'No magnetometer data' },
-    { key: 'hr', name: 'HEART RATE · LAST 5 MIN', icon: 'heartline', win: 300, range: [50, 210], ticks: [100, 150, 200], h: 110, noRate: 'Reference dashed, ours solid once added',
-      empty: e.mode === 'max' ? 'Reference HR is off in Max rate mode. Our HR will draw here.' : 'No heart rate yet', series: [{ buf: d.hr, color: 'polar', dash: true, lw: 1.6, gapS: 12 }] },
+    { key: 'hr', name: 'HEART RATE · LAST 5 MIN', icon: 'heartline', win: 300, range: [50, 210], ticks: [100, 150, 200], h: 110, noRate: 'Reference dashed, Titan X solid once added',
+      empty: e.mode === 'max' ? 'Reference HR is off in Max rate mode. Titan X HR will draw here.' : 'No heart rate yet', series: [{ buf: d.hr, color: 'polar', dash: true, lw: 1.6, gapS: 12 }] },
   ];
 }
 
@@ -47,8 +47,8 @@ export function mountMonitor(container, sensorId, back) {
 function mainHTML(e) {
   lanes = specs(e);
   return `<div class="mon-kpis">
-      <div class="kpi ours"><span class="kh">${ICO.heart('var(--z5)')}OUR HR</span><span class="kv"><span class="big num dash">–</span></span><span class="pend">Our algorithm is not added yet</span></div>
-      <div class="kpi polar"><span class="kh">${ICO.heart('var(--polar)')}REFERENCE HR</span><span class="kbox"><span class="big num" data-k="polar"></span><span class="u" data-k="polarU"></span></span><span class="zslot" data-k="polarZ"></span></div>
+      <div class="kpi ours"><span class="kh">${ICO.heart('var(--z5)')}${T.hr.ours}</span><span class="kv"><span class="big num dash">–</span></span><span class="pend">${T.hr.oursPending}</span></div>
+      <div class="kpi polar"><span class="kh">${ICO.heart('var(--polar)')}${T.hr.ref}</span><span class="kbox"><span class="big num" data-k="polar"></span><span class="u" data-k="polarU"></span></span><span class="zslot" data-k="polarZ"></span></div>
       <div class="kpi hrv"><span class="kh">${ICO.heartline}HRV</span><span class="ks">RMSSD, LAST 60 S</span><span class="kv"><span class="big num" data-k="hrv"></span><span class="u" data-k="hrvU"></span></span></div>
       <div class="kpi"><span class="kh" style="color:var(--ppi)">${ICO.pulse}<span style="color:var(--text)">PPI</span></span><span class="ks">LAST BEAT TO BEAT</span><span class="kv"><span class="big num" data-k="ppi"></span><span class="u" data-k="ppiU"></span></span></div>
       <div class="kpi"><span class="kh">TRUST</span><span class="ks">DATA HEALTH</span><span class="kv"><span class="big num" data-k="trust" style="font-size:34px"></span></span><span class="pend" data-k="trustWhy"></span></div>

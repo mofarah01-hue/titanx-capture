@@ -160,8 +160,8 @@ export function drawStrip(c, rows, marks, t) {
  * strip from ACC, hatched gaps with a label, event pins with text.
  * rows: [{ name, sub, mode, hrBuf, accBuf, zoneOf, athleteId, gaps: [{from, to, text}] }]
  */
-export function drawTimeline(c, rows, marks, t, zoom) {
-  const rowH = 76, laneH = 54, act = 8, top = 44, L = 170, R = 16;
+export function drawTimeline(c, rows, marks, t, zoom, phases = []) {
+  const rowH = 76, laneH = 54, act = 8, top = phases.length ? 64 : 44, L = 170, R = 16;
   c.style.height = `${top + Math.max(1, rows.length) * rowH + 8}px`;
   const { ctx, w, h } = fit(c); ctx.clearRect(0, 0, w, h);
   const t0 = zoom === 'all' ? 0 : Math.max(0, t - 300), t1 = zoom === 'all' ? sessionEnd(t) : Math.max(t0 + 60, t + 15);
@@ -190,7 +190,7 @@ export function drawTimeline(c, rows, marks, t, zoom) {
       }
       ctx.globalAlpha = 1;
     }
-    if (r.mode === 'max') { const xs = X(Math.max(t0, r.firstT ?? t)); if (xs < X(Math.min(t, t1))) { ctx.fillStyle = hatch(ctx, C.faint); ctx.fillRect(xs, y, X(Math.min(t, t1)) - xs, laneH); ctx.fillStyle = C.dim; ctx.font = `600 12px ${F}`; ctx.fillText('Reference HR is off in Max rate mode. Our HR will draw here.', xs + 8, y + laneH / 2); } }
+    if (r.mode === 'max') { const xs = X(Math.max(t0, r.firstT ?? t)); if (xs < X(Math.min(t, t1))) { ctx.fillStyle = hatch(ctx, C.faint); ctx.fillRect(xs, y, X(Math.min(t, t1)) - xs, laneH); ctx.fillStyle = C.dim; ctx.font = `600 12px ${F}`; ctx.fillText('Reference HR is off in Max rate mode. Titan X HR will draw here.', xs + 8, y + laneH / 2); } }
     else {
       const b = r.hrBuf; const i0 = lowerBound(b.t, t0);
       ctx.beginPath(); let last = -Infinity;
@@ -224,6 +224,18 @@ export function drawTimeline(c, rows, marks, t, zoom) {
     ctx.globalAlpha = 1; ctx.beginPath(); ctx.moveTo(x - 5, 24); ctx.lineTo(x + 5, 24); ctx.lineTo(x, 32); ctx.closePath(); ctx.fill();
     const txt = (mk.text || mk.label) + (mk.who ? ` · ${mk.who}` : ''), tw = ctx.measureText(txt).width;
     if (x + 7 > lastRight && x + 7 + tw < w) { ctx.textAlign = 'left'; ctx.fillText(txt, x + 8, 29); lastRight = x + 8 + tw + 10; }
+  }
+  // plan phases: a band under the ruler, coloured by the top zone of each target, named where it fits
+  if (phases.length) {
+    ctx.font = `700 10px ${F}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillStyle = C.dim; ctx.fillText('PLAN', 12, 47);
+    for (const p of phases) {
+      const a = Math.max(L, X(p.from)), b = Math.min(w - R, X(p.to ?? t));
+      if (b <= a) continue;
+      ctx.fillStyle = C['z' + p.zone[1]]; ctx.fillRect(a, 40, Math.max(1, b - a - 1), 14);
+      const label = p.zone[0] === p.zone[1] ? `${p.name} · Z${p.zone[0]}` : `${p.name} · Z${p.zone[0]} to ${p.zone[1]}`;
+      if (ctx.measureText(label).width + 8 < b - a) { ctx.fillStyle = '#111'; ctx.fillText(label, a + 4, 47.5); }
+    }
   }
   const xn = Math.round(X(t)) + 0.5; ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(xn, 18); ctx.lineTo(xn, bottom); ctx.stroke(); ctx.lineWidth = 1;
 }

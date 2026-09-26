@@ -9,7 +9,7 @@ export function mountTimeline(container) {
   root = container;
   root.innerHTML = `<div class="tl-bar"><h2>Session timeline</h2>
     <span class="seg" role="group" aria-label="Zoom"><button data-z="all">Whole session</button><button data-z="5">Last 5 min</button></span>
-    <span class="legend"><span><i class="dashk"></i>Reference HR</span><span><i class="solidk"></i>Our HR, once added</span><span><i class="hatch"></i>No data, never filled in</span><span>Bottom strip: movement from ACC</span></span></div>
+    <span class="legend"><span><i class="dashk"></i>Reference HR</span><span><i class="solidk"></i>Titan X HR, once added</span><span><i class="hatch"></i>No data, never filled in</span><span>Bottom strip: movement from ACC</span></span></div>
     <p class="dim" data-k="none" hidden>No session is running. Start a session to see its timeline.</p>
     <div class="tl-wrap"><canvas aria-label="Heart rate per sensor on one time axis, with events"></canvas></div>`;
   $$('[data-z]', root).forEach((b) => b.addEventListener('click', () => { S.tlZoom = b.dataset.z; refreshTimeline(now()); }));
@@ -29,6 +29,6 @@ export function refreshTimeline(t) {
     };
   });
   const marks = S.marks.map((m) => ({ ...m, who: m.target === 'all' ? '' : (S.reg.athletes.find((a) => a.id === m.target)?.name || '').split(' ')[0] }));
-  drawTimeline($('canvas', root), rows, marks, t, S.tlZoom);
+  drawTimeline($('canvas', root), rows, marks, t, S.tlZoom, S.phases);
 }
 export const unmountTimeline = () => { root = null; };
