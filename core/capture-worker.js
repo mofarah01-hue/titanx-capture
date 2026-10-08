@@ -5,7 +5,8 @@
 // sensor's clock) and gets a session time (t_session_s, seconds since the session started on this
 // laptop's monotonic clock). session = sensor + offset, where offset is the smallest
 // (receive time minus sensor time) seen over the last 30 s: the least delayed packet is the best
-// estimate, and the window follows slow clock drift. frames.csv keeps every packet's receive time
+// estimate, and the window follows slow clock drift. The offset applied moves towards it at most
+// 10 ms per second, so session time never runs backwards within a stream. frames.csv keeps every packet's receive time
 // so the mapping can be redone later.
 //
 // Gaps. PMD frames carry no sequence number. A frame whose samples would be spread over more than
@@ -17,6 +18,7 @@ import { MeasurementType as MT, MEASUREMENT_TYPE_NAME } from './pmd/constants.js
 import { parseHeartRateMeasurement, parseBatteryLevel } from './ble/gatt-parse.js';
 import { SessionStore, sessionName, safeName, unfinishedSessions, recoverSession } from './recorder.js';
 import { zipToBlob } from './storage/zip.js';
+import * as SW from './senswear/protocol.js';
 
 const KEY = { [MT.PPG]: 'ppg', [MT.ACC]: 'acc', [MT.GYRO]: 'gyro', [MT.MAG]: 'mag', [MT.PPI]: 'ppi' };
 const UNIT_COLS = {
@@ -45,8 +47,8 @@ function log(level, msg) { logs.push({ t: Date.now(), level, msg }); if (logs.le
 function device(id) {
   let d = devices.get(id);
   if (!d) {
-    d = { id, athlete: 'unassigned', athleteId: null, position: null, mode: 'polar', streams: {}, cfg: {}, offsets: [], offset: null,
-      hr: { i: 0, last: null, lastRx: null }, ppi: { recent: [] }, battery: [], events: [], link: null, frameNo: 0 };
+    d = { id, athlete: 'unassigned', athleteId: null, position: null, mode: 'polar', kind: 'polar', bleName: null, streams: {}, cfg: {}, offsets: [], offset: null,
+      hr: { i: 0, last: null, lastRx: null }, ppi: { recent: [] }, battery: [], events: [], link: null, frameNo: 0, clocks: {}, power: null };
     devices.set(id, d);
   }
   return d;
@@ -71,7 +73,7 @@ async function startSession(m) {
   store = await SessionStore.start({ name: session.name, drive, checkpointEveryS: m.checkpointS, onStatus: (st) => post({ type: 'storage', status: st }) });
   session.name = store.name;
   marks = 0; dropouts.length = 0;
-  for (const d of devices.values()) Object.assign(d, { streams: {}, hr: { i: 0, last: d.hr.last, lastRx: null }, events: [], battery: [], frameNo: 0, framesOpen: null, offsets: [], offset: null }); // session time restarts at 0
+  for (const d of devices.values()) Object.assign(d, { streams: {}, hr: { i: 0, last: d.hr.last, lastRx: null }, events: [], battery: [], frameNo: 0, framesOpen: null, offsets: [], offset: null, slew: null, clocks: {} }); // session time restarts at 0
   await store.setManifest(manifest());
   clearInterval(flushTimer); clearInterval(manifestTimer);
   flushTimer = setInterval(() => { try { store?.flush(); } catch (e) { log('error', e.message); } }, 1000);
@@ -84,7 +86,7 @@ async function endSession() {
   clearInterval(flushTimer); clearInterval(manifestTimer);
   for (const d of devices.values()) if (d.link?.lostAt != null) closeLinkGap(d, d.link.lostAt, null);
   session.endedUnixMs = Date.now();
-  for (const d of devices.values()) { d.offsets = []; d.offset = null; } // app time resumes after the session
+  for (const d of devices.values()) { d.offsets = []; d.offset = null; d.slew = null; d.clocks = {}; } // app time resumes after the session
   const res = await store.finalize(manifest());
   const summary = { name: session.name, durationS: (session.endedUnixMs - session.startedUnixMs) / 1000, sensors: devices.size, marks, bytes: store.status.bytes, ...res };
   store = null; session = null;
@@ -102,12 +104,13 @@ function manifest() {
       ended: s.endedUnixMs ? new Date(s.endedUnixMs).toISOString() : null,
       duration_s: s.endedUnixMs ? (s.endedUnixMs - s.startedUnixMs) / 1000 : null,
       clock: 't_session_s: seconds since the session started, on this laptop\'s monotonic clock. started_unix_ms is the wall clock at t_session_s = 0. t_sensor_ns: the sensor\'s own clock, ns since 2000-01-01.',
-      sample_timing: 't_session_s of a sample = its sensor time + a per sensor offset, the smallest (receive time - sensor time) over the last 30 s. frames.csv keeps every packet\'s receive time.',
+      sample_timing: 't_session_s of a sample = its sensor time + a per sensor offset that follows the smallest (receive time - sensor time) over the last 30 s, moving at most 10 ms per second so time never runs backwards in a stream. frames.csv (Polar) and rx_session_s (SensWear) keep every receive time.',
       gaps: 'Never interpolated. Every gap is listed under dropouts and left empty in the CSVs.',
     },
     devices: [...devices.values()].map((d) => ({
-      device_id: d.id, ble_name: `Polar Sense ${d.id}`, athlete: d.athlete, athlete_id: d.athleteId, position: d.position, mode: d.mode,
-      time_offset_s: d.offset,
+      device_id: d.id, kind: d.kind, ble_name: d.bleName || `Polar Sense ${d.id}`, athlete: d.athlete, athlete_id: d.athleteId, position: d.position, mode: d.mode,
+      time_offset_s: d.offset, clock_offsets_s: d.kind === 'senswear' ? Object.fromEntries(Object.entries(d.clocks).map(([k, c]) => [k, c.offset])) : undefined,
+      power: d.kind === 'senswear' ? d.power : undefined,
       streams: Object.fromEntries(Object.entries(d.streams).map(([k, st]) => [k, {
         file: st.file ? `${st.file}.csv` : null, requested: d.cfg[k]?.settings ?? null, factor: d.cfg[k]?.factor ?? null,
         frame_types: [...st.frameTypes], samples: st.i, frames: st.frames, bad_frames: st.badFrames,
@@ -122,12 +125,24 @@ function manifest() {
 }
 
 // ---------- packets ----------
+// The offset applied to a sensor clock may only move SLEW seconds per second towards the current
+// estimate. A better estimate used to be applied at once, so a stream's session time could step back
+// (up to 7 ms in v0.1.0 recordings). At 1 % the applied offset changes far less than one sample period
+// between neighbouring samples, so session time always increases; a 100 ms first guess settles in 10 s.
+const SLEW = 0.01;
+function slewed(c, rx, target) {
+  if (c.applied == null) { c.applied = target; c.at = rx; return target; }
+  const max = SLEW * Math.max(0, rx - c.at);
+  c.applied += Math.max(-max, Math.min(max, target - c.applied)); c.at = rx;
+  return c.applied;
+}
+
 function offsetFor(d, rx, sensorS) {
   d.offsets.push([rx, rx - sensorS]);
   while (d.offsets.length && d.offsets[0][0] < rx - 30) d.offsets.shift();
   let best = Infinity; for (const [, o] of d.offsets) if (o < best) best = o;
-  d.offset = best;
-  return best;
+  d.offset = slewed(d.slew ||= {}, rx, best);
+  return d.offset;
 }
 
 function ensureFile(d, s, names) {
@@ -246,6 +261,83 @@ async function onHr(d, bytes, rx) {
   s.i = d.hr.i;
 }
 
+// ---------- SensWear ----------
+// One sample per notification, each with its own board time stamp: PPG on a ms clock, IMU on a µs clock.
+// Each clock gets its own session offset, found the same way as Polar's. Gaps are found from the time
+// stamps (more than 1.5 sample periods apart), logged, and never filled in. Every row also keeps its
+// receive time (rx_session_s), so the timing can be redone offline; there is no frames file.
+const SW_STREAM = {
+  ppg: { file: 'ppg_green', clock: 'ms', cols: ['counts'] }, ppg_red: { file: 'ppg_red', clock: 'ms', cols: ['counts'] }, ppg_ir: { file: 'ppg_ir', clock: 'ms', cols: ['counts'] },
+  acc: { file: 'acc', clock: 'us', cols: ['x_mg', 'y_mg', 'z_mg'] }, gyro: { file: 'gyro', clock: 'us', cols: ['x_raw', 'y_raw', 'z_raw'] },
+  quat: { file: 'quat', clock: 'us', cols: ['w', 'x', 'y', 'z', 'accuracy_rad'] },
+};
+
+function swOffset(d, clock, rx, sensorS) {
+  const c = d.clocks[clock] ||= { offsets: [], offset: null };
+  c.offsets.push([rx, rx - sensorS]);
+  while (c.offsets.length && c.offsets[0][0] < rx - 30) c.offsets.shift();
+  let best = Infinity; for (const [, o] of c.offsets) if (o < best) best = o;
+  c.offset = slewed(c, rx, best);
+  if (clock === 'ms') d.offset = c.offset;
+  return c.offset;
+}
+
+async function swOpen(d, s, spec) {
+  if (s.file) return;
+  s.file = `${base(d)}_${spec.file}`;
+  await store.openStream(s.file, ['i', 't_session_s', spec.clock === 'ms' ? 't_sensor_ms' : 't_sensor_us', 'rx_session_s', ...spec.cols]);
+}
+
+async function onSw(d, kind, bytes, rx) {
+  if (kind === 'battery') { const v = SW.decodeBatteryLevel(bytes); d.battery.push({ t: round(rx, 1), pct: v }); return; }
+  if (kind === 'power') {
+    const p = SW.decodePowerStatus(bytes), txt = `power: battery ${p.batteryPresent ? 'present' : 'absent'}, wired ${SW.POWER_SOURCE[p.wiredPower]}, ${SW.CHARGE_STATE[p.chargeState]}${p.chargingFault ? `, charging fault ${p.chargingFault}` : ''}`;
+    if (txt !== d.power?.text) { d.power = { t: round(rx, 1), text: txt, ...p }; d.events.push({ t: round(rx, 3), what: txt }); }
+    return;
+  }
+  if (kind === 'temp') {
+    const m = SW.decodeTemperature(bytes), s = stream(d, 'temp');
+    s.disp.t.push(rx); s.disp.v.push(m.celsius); s.disp.ch = 1; s.lastRx = rx; s.frames++;
+    if (!store) return;
+    if (!s.file) { s.file = `${base(d)}_temperature`; await store.openStream(s.file, ['i', 'rx_session_s', 'celsius', 'board_time']); }
+    store.append(s.file, `${s.i++},${rx.toFixed(4)},${round(m.celsius, 3)},${m.time ? m.time.toISOString() : ''}\n`, 1);
+    return;
+  }
+  if (kind === 'gesture' || kind === 'activity') {
+    const e = kind === 'gesture' ? SW.decodeGesture(bytes) : SW.decodeActivity(bytes);
+    d.events.push({ t: round(rx, 3), what: `${kind} ${JSON.stringify({ ...e, tUs: String(e.tUs) })}` });
+    return;
+  }
+  const spec = SW_STREAM[kind];
+  if (!spec) { log('warn', `${d.id}: SensWear packet kind ${kind} ignored`); return; }
+  let tick, vals;
+  if (spec.clock === 'ms') { const p = SW.decodePpg(bytes); tick = p.tMs; vals = [p.value]; if (p.value > SW.PPG_ADC_MAX) log('warn', `${d.id} ${kind}: ${p.value} counts is above the 18 bit range`); }
+  else if (kind === 'quat') { const q = SW.decodeQuaternion(bytes); tick = q.tUs; vals = [q.w, q.x, q.y, q.z, q.accuracyRad]; }
+  else { const v = SW.decodeVector(bytes); tick = v.tUs; vals = kind === 'acc' ? [v.x, v.y, v.z].map((x) => (x * 1000) / SW.ACC_LSB_PER_G) : [v.x, v.y, v.z]; }
+  const sensorS = Number(tick) / (spec.clock === 'ms' ? 1e3 : 1e6);
+  const s = stream(d, kind), nominal = s.hz || d.cfg[kind]?.sampleRate || 0;
+  const off = swOffset(d, spec.clock, rx, sensorS), sess = sensorS + off;
+  if (s.prevS != null && nominal) {
+    const dt = sensorS - s.prevS;
+    if (dt > 1.5 / nominal) {
+      const missing = Math.max(0, Math.round(dt * nominal) - 1);
+      s.lostSamples += missing;
+      dropouts.push({ device_id: d.id, stream: kind, kind: 'packets', at_session_s: round(rx, 3), from_sensor: String(s.prevTick), to_sensor: String(tick), missing_samples_est: missing });
+      post({ type: 'gap', id: d.id, stream: kind, from: sess - dt, to: sess, missing });
+    } else if (dt <= 0) log('warn', `${d.id} ${kind}: board time stamp went backwards or repeated (${s.prevTick} then ${tick})`);
+    else s.rateWin.push([rx, 1, dt]);
+  }
+  while (s.rateWin.length && s.rateWin[0][0] < rx - 10) s.rateWin.shift();
+  if (s.rateWin.length > 20) { let n = 0, dt = 0; for (const [, c, t] of s.rateWin) { n += c; dt += t; } s.hz = n / dt; }
+  s.arrWin.push([rx, 1]); while (s.arrWin.length && s.arrWin[0][0] < rx - 10) s.arrWin.shift();
+  if (s.arrWin.length > 20) { const span = rx - s.arrWin[0][0]; if (span > 5) s.arrivalHz = (s.arrWin.length - 1) / span; }
+  s.prevS = sensorS; s.prevTick = tick; s.frames++; s.lastRx = rx;
+  s.disp.t.push(sess); for (const v of kind === 'quat' ? vals.slice(0, 4) : vals) s.disp.v.push(v); s.disp.ch = kind === 'quat' ? 4 : vals.length;
+  if (!store) { s.i++; return; }
+  await swOpen(d, s, spec);
+  store.append(s.file, `${s.i++},${sess.toFixed(4)},${tick},${rx.toFixed(4)},${vals.map((v) => (kind === 'quat' ? round(v, 6) : v)).join(',')}\n`, 1);
+}
+
 function rmssd(d) {
   const r = d.ppi.recent.filter((x) => !x[2]).map((x) => x[1]);
   if (r.length < 3) return null;
@@ -324,7 +416,7 @@ async function handle(m) {
       case 'drive': drive = m.drive; store?.setDrive(m.drive); break;
       case 'session-start': await startSession(m); break;
       case 'session-end': post({ type: 'ended', summary: await endSession() }); break;
-      case 'device': Object.assign(device(m.id), { athlete: m.athlete || 'unassigned', athleteId: m.athleteId ?? null, position: m.position ?? null, mode: m.mode || 'polar' }); store?.setManifest(manifest()); break;
+      case 'device': Object.assign(device(m.id), { athlete: m.athlete || 'unassigned', athleteId: m.athleteId ?? null, position: m.position ?? null, mode: m.mode || 'polar', kind: m.kind || 'polar', bleName: m.bleName || null }); store?.setManifest(manifest()); break;
       case 'stream': { const d = device(m.id); d.cfg[m.key] = m.cfg; d.mode = m.cfg.mode || d.mode; const s = d.streams[m.key]; if (s) s.prevTs.clear(); store?.setManifest(manifest()); break; }
       case 'link': linkEvent(device(m.id), m); store?.setManifest(manifest()); break;
       case 'packet': {
@@ -332,7 +424,8 @@ async function handle(m) {
         raw.push({ rx: m.rx, id: m.id, kind: m.kind, hex: hex(bytes) });
         while (raw.length && raw[0].rx < m.rx - RAW_KEEP_S) raw.shift();
         if (debug) console.log(m.id, m.kind, m.rx.toFixed(3), hex(bytes));
-        if (m.kind === 'pmd') await onPmd(d, bytes, m.rx);
+        if (d.kind === 'senswear') { try { await onSw(d, m.kind, bytes, m.rx); } catch (e) { stream(d, m.kind).badFrames++; log('warn', `${d.id} ${m.kind}: not decoded (${e.message}). Raw: ${hex(bytes)}`); } }
+        else if (m.kind === 'pmd') await onPmd(d, bytes, m.rx);
         else if (m.kind === 'hr') await onHr(d, bytes, m.rx);
         else if (m.kind === 'battery') { const b = parseBatteryLevel(bytes); if (b.valid) d.battery.push({ t: round(m.rx, 1), pct: b.percent }); }
         break;

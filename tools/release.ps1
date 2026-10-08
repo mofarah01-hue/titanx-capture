@@ -24,7 +24,7 @@ if (-not $SkipE2E) {
 }
 
 $built = Get-Date -Format 'yyyy-MM-dd'
-$files = @('index.html', 'app/styles.css') +
+$files = @('index.html', 'senswear.html', 'app/styles.css') +
   (Get-ChildItem -Recurse -File app, core, strings -Include *.js | ForEach-Object { (Resolve-Path -Relative $_.FullName).Substring(2).Replace('\', '/') })
 $json = [ordered]@{ version = $Version; built = $built; files = $files } | ConvertTo-Json -Depth 3
 [IO.File]::WriteAllText("$PWD/version.json", $json + "`n")

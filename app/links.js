@@ -2,6 +2,7 @@
 // SensorLink per device. Packets go straight to the capture worker.
 import T from '../strings/en.js';
 import { SensorLink, chooseSensor } from '../core/ble/device.js';
+import { SensWearLink, chooseSensWear } from '../core/senswear/link.js';
 import { deviceIdFromName, upsertSensor, upsertAthlete, saveRegistry, POSITIONS } from '../core/registry.js';
 import { S, emit, newData, rxOf, now, infoOf, log } from './state.js';
 import { toast, say, modal, esc, headSVG, $$ } from './ui.js';
@@ -23,15 +24,15 @@ export async function persistRegistry() {
  * click keeps its permission to open it.
  */
 export async function connect(slotId = null) {
-  toast(T.connect.hint + (slotId ? ` This one is ${slotId.slice(-4)}.` : ''), 6000);
+  toast((S.kind === 'senswear' ? T.connect.swHint : T.connect.hint) + (slotId ? ` This one is ${slotId.slice(-4)}.` : ''), 6000);
   await sleep(1200);
   let device;
-  try { device = await (radio ? radio.requestDevice() : chooseSensor()); } catch (e) {
+  try { device = await (radio ? radio.requestDevice() : S.kind === 'senswear' ? chooseSensWear() : chooseSensor()); } catch (e) {
     const m = String(e?.message || '');
     toast(say(e?.name === 'NotFoundError' && /adapter|not available/i.test(m) ? T.errors.btOff : e?.name === 'SecurityError' ? T.errors.blocked : T.errors.noPick));
     return;
   }
-  const id = deviceIdFromName(device.name);
+  const id = S.kind === 'senswear' ? sensWearId(device) : deviceIdFromName(device.name);
   if (!id) { toast(say(T.errors.notPolar)); return; }
   if (slotId && id !== slotId && !infoOf(id).sensor) {
     const keep = infoOf(slotId);
@@ -54,12 +55,23 @@ export function connectSim(id) {
   if (d && st !== 'streaming' && st !== 'connecting') start(d, id);
 }
 
+/**
+ * SensWear boards all advertise the same name, so the ID comes from the browser's own device ID (stable
+ * for this browser and site, never the radio address): 8 hex digits, the same shape as a Polar ID.
+ */
+export function sensWearId(device) {
+  if (/^[0-9A-F]{8}$/.test(device.id)) return device.id; // simulated boards
+  let h = 0x811c9dc5;
+  for (const ch of String(device.id)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).toUpperCase().padStart(8, '0');
+}
+
 function start(device, id) {
   let e = S.links.get(id);
   if (e && e.device === device && e.link.state !== 'disconnected') { e.link.run(e.link.failedAt).catch(() => {}); return; }
-  const info = infoOf(id);
-  e = { id, device, mode: info.sensor?.mode || 'polar', data: newData(), stats: {}, streams: {}, linkState: null, streamingSince: null };
-  e.link = new SensorLink(device, {
+  const info = infoOf(id), sw = S.kind === 'senswear';
+  e = { id, kind: S.kind, device, mode: sw ? 'senswear' : info.sensor?.mode || 'polar', data: newData(), stats: {}, streams: {}, linkState: null, streamingSince: null };
+  e.link = new (sw ? SensWearLink : SensorLink)(device, {
     mode: e.mode,
     onPacket: (kind, bytes, rxMs) => worker.postMessage({ type: 'packet', id, kind, rx: rxOf(rxMs), bytes: bytes.buffer }, [bytes.buffer]),
     onStream: (key, cfg) => { e.streams[key] = cfg; worker.postMessage({ type: 'stream', id, key, cfg }); },
@@ -80,7 +92,7 @@ function start(device, id) {
 export function tellWorker(id) {
   const e = S.links.get(id); if (!e) return;
   const { sensor, athlete } = infoOf(id);
-  worker.postMessage({ type: 'device', id, athlete: athlete?.name, athleteId: athlete?.id ?? null, position: sensor?.position ?? null, mode: e.mode });
+  worker.postMessage({ type: 'device', id, athlete: athlete?.name, athleteId: athlete?.id ?? null, position: sensor?.position ?? null, mode: e.mode, kind: e.kind || 'polar', bleName: e.device?.name || null });
 }
 
 export function retry(id) { const e = S.links.get(id); if (e) e.link.retry().catch(() => {}); }

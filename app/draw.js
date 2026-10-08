@@ -79,8 +79,10 @@ export function drawLane(c, spec, t, pins = []) {
       if (!Number.isFinite(v)) { pen = false; continue; }
       any = true;
       const x = X(tt), y = Y(Math.max(lo, Math.min(hi, v)));
+      if (S.dots) { ctx.moveTo(x + 3.2, y); ctx.arc(x, y, 3.2, 0, 7); continue; }   // markers, e.g. detected beats
       if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y);
     }
+    if (S.dots) { ctx.fillStyle = C[S.color]; ctx.fill(); continue; }
     ctx.strokeStyle = C[S.color]; ctx.lineWidth = S.lw || 1.5; ctx.setLineDash(S.dash ? [5, 4] : []); ctx.stroke(); ctx.setLineDash([]);
   }
   if (!any) { ctx.fillStyle = C.dim; ctx.font = `600 12px ${C.font}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(spec.empty || 'No data yet', pl + 10, pt + ph / 2); }

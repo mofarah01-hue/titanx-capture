@@ -2,7 +2,7 @@
 // panels with two lanes, 5 or more get compact tiles plus the session strip. Every panel and tile
 // opens the full monitor.
 import T from '../../strings/en.js';
-import { S, slotIds, slotState, liveHr, zoneFor, infoOf, athleteName, positionOf, planTarget, now } from '../state.js';
+import { S, slotIds, slotState, liveHr, pcHr, zoneFor, infoOf, athleteName, positionOf, planTarget, now } from '../state.js';
 import { STATUS, current } from '../../core/plans.js';
 import { zoneText, planClock } from './plan.js';
 import { ICO, headSVG, battHTML, zoneBadge, esc, el, setHTML, setText, $, $$, fmtMS } from '../ui.js';
@@ -55,7 +55,7 @@ function headerHTML(id, tile) {
 function kpisHTML(tile) {
   const tag = tile ? 'div' : 'button';
   return `<div class="kpis">
-    <${tag} class="kpi ours" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--z5)')}${T.hr.ours}</span><span class="kv"><span class="big num dash" data-k="ours">–</span><span class="u" data-k="oursU"></span></span><span class="zslot" data-k="oursZ"><span class="pend">${T.hr.oursPending}</span></span></${tag}>
+    <${tag} class="kpi ours" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--z5)')}${S.pitch ? T.hr.ours : T.hr.pc}</span><span class="kv"><span class="big num dash" data-k="ours">–</span><span class="u" data-k="oursU"></span></span><span class="zslot" data-k="oursZ"><span class="pend">${T.hr.oursPending}</span></span></${tag}>
     <${tag} class="kpi polar" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heart('var(--polar)')}${T.hr.ref}</span><span class="kbox"><span class="big num" data-k="polar"></span><span class="u" data-k="polarU"></span></span><span class="zslot" data-k="polarZ"></span></${tag}>
     <${tag} class="kpi hrv" ${tile ? '' : 'data-open'}><span class="kh">${ICO.heartline}HRV</span><span class="ks">RMSSD</span><span class="kv"><span class="big num" data-k="hrv"></span><span class="u" data-k="hrvU"></span></span></${tag}>
   </div>`;
@@ -64,6 +64,15 @@ function kpisHTML(tile) {
 /** Overview lanes. ACC and GYRO show the size of the movement on all three axes (1 g means still). */
 export function laneSpecs(e, n) {
   const d = e.data;
+  if (e.kind === 'senswear') {
+    const sw = [
+      { key: 'ppg', name: 'PPG GREEN', icon: 'ppg', auto: true, minSpan: 50, series: [{ buf: d.ppgf, ch: 0, color: 'ppg' }], empty: 'Waiting for PPG' },
+      { key: 'acc', name: 'ACCELEROMETER', unit: 'g', icon: 'acc', range: [0, 3], ticks: [0, 1, 2], series: [{ buf: d.accMag, color: 'acc', lw: 1.2, map: (v) => v / 1000 }], empty: 'IMU off or not sending' },
+      { key: 'gyro', name: 'GYROSCOPE', unit: 'raw counts, no scale given', icon: 'gyro', auto: true, minSpan: 200, series: [{ buf: d.gyroMag, color: 'gyro', lw: 1.2 }], empty: 'IMU off or not sending' },
+      { key: 'ppg_red', name: 'PPG RED', icon: 'ppg', auto: true, minSpan: 50, series: [{ buf: d.ppg_redf, ch: 0, color: 'ppg1' }], empty: 'Waiting for red PPG' },
+    ];
+    return n === 'n4' ? sw.slice(0, 2) : sw;
+  }
   const all = [
     { key: 'ppg', name: 'PPG', icon: 'ppg', auto: true, minSpan: 50, series: [{ buf: d.ppgf, ch: 0, color: 'ppg' }], empty: 'Waiting for PPG' },
     { key: 'acc', name: 'ACCELEROMETER', unit: 'g', icon: 'acc', range: [0, 3], ticks: [0, 1, 2], series: [{ buf: d.accMag, color: 'acc', lw: 1.2, map: (v) => v / 1000 }] },
@@ -134,7 +143,23 @@ export function connText(e, st, t) {
 }
 
 export function fillKpis(root2, e, st, t) {
-  const hr = liveHr(e, t);
+  const hr = liveHr(e, t), sw = e.kind === 'senswear';
+  if (!S.pitch) {
+    // Our PC side estimate (core/algo/hr.js), for both sensors, beside Polar's own number where there is one.
+    const p = pcHr(e, t), o = root2.querySelector('[data-k="ours"]');
+    if (o) {
+      setText(o, p ? String(Math.round(p.bpm)) : '--'); o.classList.toggle('dash', !p);
+      setText(root2.querySelector('[data-k="oursU"]'), p ? 'bpm' : '');
+      setHTML(root2.querySelector('[data-k="oursZ"]'), p ? `${zoneBadge(zoneFor(e.id, p.bpm))}<span class="pend">quality ${(p.quality * 100).toFixed(0)} %</span>` : `<span class="pend">${e.pcEst?.status?.why || T.hr.pcPending}</span>`);
+    }
+  }
+  if (sw) {
+    setText(root2.querySelector('[data-k="polar"]'), 'None'); root2.querySelector('[data-k="polar"]').classList.add('wordy');
+    setText(root2.querySelector('[data-k="polarU"]'), '');
+    setHTML(root2.querySelector('[data-k="polarZ"]'), `<span class="pend">${T.hr.swRef}</span>`);
+    setText(root2.querySelector('[data-k="hrv"]'), '--'); setText(root2.querySelector('[data-k="hrvU"]'), '');
+    return;
+  }
   if (S.pitch) {
     // Pitch screenshots only (?pitch=1 with simulated sensors): an illustrative number where our
     // algorithm's HR will go. Never shown with real sensors.
@@ -217,7 +242,7 @@ export function refresh(t) {
       }
     }
   }
-  if (layout === 'n7') drawStrip($('#strip', root), cards.map((c) => { const e = S.links.get(c.id); return { label: `${athleteName(c.id).split(' ')[0]} · ${T.positions[positionOf(c.id)] || c.id.slice(-4)}`, hrBuf: e?.data.hr || { t: [], v: [] }, firstT: e?.data.firstT ?? null, maxMode: e?.mode === 'max', athleteId: infoOf(c.id).athlete?.id, zoneOf: (hr) => zoneFor(c.id, hr) }; }), S.marks, t);
+  if (layout === 'n7') drawStrip($('#strip', root), cards.map((c) => { const e = S.links.get(c.id); return { label: `${athleteName(c.id).split(' ')[0]} · ${T.positions[positionOf(c.id)] || c.id.slice(-4)}`, hrBuf: (e?.kind === 'senswear' ? e?.data.pcHr : e?.data.hr) || { t: [], v: [] }, firstT: e?.data.firstT ?? null, maxMode: e?.mode === 'max', athleteId: infoOf(c.id).athlete?.id, zoneOf: (hr) => zoneFor(c.id, hr) }; }), S.marks, t);
 }
 
 /** Every frame: trace lanes of full panels. */

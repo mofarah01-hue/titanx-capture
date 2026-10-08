@@ -115,12 +115,18 @@ export default {
       gyro: 'GYRO started',
       mag: 'MAG started',
       ppi: 'Beat to beat (PPI) started',
+      info: 'Firmware and boards read',
+      clock: 'Board clock read',
+      imu: 'IMU started',
+      temperature: 'Temperature on',
     },
+    swHint: 'A popup will list nearby boards named Sens Wear. Switch the board on (SW1) or plug in the debug board first.',
     named: (athlete, position) => `This sensor is ${athlete}, ${position}.`,
     unknown: 'New sensor. Pick the athlete and head position so the app remembers it.',
   },
 
-  hr: { ours: 'TITAN X HR', oursPending: 'Titan X HR algorithm not added yet', ref: 'REFERENCE HR' },
+  hr: { ours: 'TITAN X HR', oursPending: 'Titan X HR algorithm not added yet', ref: 'REFERENCE HR',
+    pc: 'PC HR · EXPERIMENTAL', pcPending: 'Waiting for clean beats', pcOff: 'Estimator not written yet', swRef: 'SensWear gives no HR of its own' },
 
   plan: {
     tab: 'Plan',

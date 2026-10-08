@@ -9,6 +9,18 @@ Research capture dashboard for Polar Verity Sense optical HR sensors worn in com
 
 For the remote user: [QUICKSTART.md](QUICKSTART.md). For the first real session on the Mac: [MAC_FIRST_RUN.md](MAC_FIRST_RUN.md).
 
+## SensWear GUI (`senswear.html`, added 2026-10-08)
+
+The same app for the SensWear board (nRF54L15 main board, MAX30101 PPG board, debug board): `http://localhost:8080/senswear.html`, or `?sim=1` for a simulated board. Internal engineering and demo use (TItan-X DECISIONS D42, D44, D45). Same front end as the Polar page; the back end is `core/senswear/` (protocol ported from SensWear's MIT web-bluetooth-sdk, link, MAX30101 register map, serial shell, firmware facts) and `core/sim/fake-senswear.js`.
+
+- Live, Timeline, Plan as for Polar. SensWear has no heart rate of its own, so its reference slot says so.
+- Engineering tab (both pages): board and power facts, stream switches, measured against arrival rates, LED and vibration, the signal cleaning chain (raw, baseline removed, band-pass with beats, PC HR), and for SensWear a USB console and a MAX30101 register editor with the datasheet's rate rules.
+- Compare tab (both pages): what Polar and SensWear can and cannot do, with sources and a live column.
+- PC HR (`core/algo/hr.js`) runs on both pages beside Polar's HR. It is a first engineering estimate.
+- Recording: `ppg_green`, `ppg_red`, `ppg_ir`, `acc` (mg, gravity included), `gyro` (raw, no scale declared), `quat`, `temperature` CSVs, each row with board time and receive time.
+
+What the stock SensWear firmware does and does not allow, read from its source, is in `core/senswear/firmware-facts.js` and in AI-Modeling `Personal\Titan-X\Boards\SensWear-Reference\FINDINGS.md`. In short: over Bluetooth only stream switches, batching, LED colour, vibration and clock; no rates, LED currents or registers; no shell in preset builds; flashing over SWD only. The register editor works in sim; on the real board it needs a firmware with a register service.
+
 ## What works (v0.0.1, 2026-09-25, tested in sim mode only)
 
 | Area | State |

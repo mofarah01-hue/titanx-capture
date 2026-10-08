@@ -2,11 +2,13 @@
 // write into it. Nothing here touches the DOM.
 import { sensorInfo, maxHrOf, zoneOf, emptyRegistry } from '../core/registry.js';
 import { current, targetStatus, zoneBpm } from '../core/plans.js';
+import { createHrEstimator } from '../core/algo/hr.js';
 
 export const bus = new EventTarget();
 export const emit = (what) => bus.dispatchEvent(new CustomEvent('change', { detail: what }));
 
 export const S = {
+  kind: 'polar',                 // which GUI this page is: 'polar' (index.html) or 'senswear' (senswear.html)
   env: null, sim: 0, debug: false,
   folder: { handle: null, name: '', permission: 'none', shared: null },
   storage: null,                 // status from the recorder: { local, lastLocalWrite, drive, lastDriveWrite, driveError, bytes }
@@ -51,6 +53,11 @@ export function newData() {
     hr: new Buf(0, 1), ppi: new Buf(600, 1),
     firstT: null,                                       // session time of this sensor's first sample
     move: new Buf(0, 1),                                // whole session: mean ||a| - 1 g| per second, for the timeline
+    // SensWear only: red and IR PPG (green is `ppg`), orientation, skin temperature
+    ppg_red: new Buf(20, 1), ppg_redf: new Buf(20, 1), ppg_ir: new Buf(20, 1), ppg_irf: new Buf(20, 1),
+    quat: new Buf(20, 4), temp: new Buf(0, 1),
+    pcHr: new Buf(0, 1),                                // heart rate from our PC side algorithm (core/algo/hr.js)
+    ppgBp: new Buf(20, 1), beats: new Buf(20, 1),       // its band-passed PPG and the beats it found
   };
 }
 
@@ -62,8 +69,9 @@ function magnitudes(t, v, ch) {
 
 // PPG for display only: remove the slow baseline per channel and flip it so a pulse points up.
 // The recorded CSV keeps the raw counts.
-function filterPpg(e, t, v, ch) {
-  const f = e.ppgFilter ||= { base: null, lastT: null };
+function filterPpg(e, t, v, ch, key = 'ppg') {
+  const all = e.ppgFilters ||= {};
+  const f = all[key] ||= { base: null, lastT: null };
   const out = new Float32Array(v.length);
   for (let i = 0; i < t.length; i++) {
     const dt = f.lastT == null ? 0 : Math.max(0, Math.min(1, t[i] - f.lastT));
@@ -81,7 +89,8 @@ export function ingest(e, m) {
     const b = e.data[k]; if (!b) continue;
     if (d.t.length && (e.data.firstT == null || d.t[0] < e.data.firstT)) e.data.firstT = d.t[0];
     b.add(d.t, d.v, d.ch);
-    if (k === 'ppg') e.data.ppgf.add(d.t, filterPpg(e, d.t, d.v, d.ch), d.ch);
+    if (k === 'ppg') { e.data.ppgf.add(d.t, filterPpg(e, d.t, d.v, d.ch), d.ch); pcHrFeed(e, d.t, d.v, d.ch); }
+    if (k === 'ppg_red' || k === 'ppg_ir') e.data[`${k}f`].add(d.t, filterPpg(e, d.t, d.v, d.ch, k), d.ch);
     if (k === 'gyro' && d.ch >= 3) e.data.gyroMag.add(d.t, magnitudes(d.t, d.v, d.ch), 1);
     if (k === 'acc' && d.ch >= 3) {
       const m = magnitudes(d.t, d.v, d.ch);
@@ -95,6 +104,25 @@ export function ingest(e, m) {
     }
   }
   e.stats = m.stats; e.hr = m.hr; e.hrRx = m.hrRx; e.rmssd = m.rmssd;
+}
+
+// Our PC side heart rate, from the first PPG channel (Polar green 0, SensWear green). The estimator is
+// rebuilt when the measured rate settles or changes by more than 5 %, because its filters assume one rate.
+function pcHrFeed(e, t, v, ch) {
+  const hz = e.stats?.ppg?.hz;
+  if (!hz) return;
+  if (!e.pcEst || Math.abs(e.pcEst.fs - hz) / hz > 0.05) {
+    e.pcEst = createHrEstimator(hz, { onSample: (ts, y) => e.data.ppgBp.add([ts], [y], 1), onBeat: (ts, y) => e.data.beats.add([ts], [y], 1) });
+  }
+  for (let i = 0; i < t.length; i++) {
+    const r = e.pcEst.push(t[i], v[i * ch]);
+    if (r) { e.pcHr = r; e.data.pcHr.add([t[i]], [r.bpm], 1); }
+  }
+}
+
+/** Our PC side HR if it is fresh (the estimator reports about once a second). */
+export function pcHr(e, t = now()) {
+  return e?.pcHr && t - e.pcHr.t <= 5 ? e.pcHr : null;
 }
 
 export function infoOf(id) { return sensorInfo(S.reg, id); }
@@ -127,13 +155,14 @@ export function liveHr(e, t = now()) {
 export function trustOf(e, t = now()) {
   const st = slotState(e, t);
   if (st !== 'ok' && st !== 'raw') return { level: 'None', cls: 'bad', why: 'No live data' };
-  const issues = [];
-  for (const k of ['ppg', 'acc', 'gyro', 'mag']) {
+  const issues = [], sw = e.kind === 'senswear';
+  for (const k of sw ? ['ppg', 'ppg_red', 'ppg_ir', 'acc', 'gyro'] : ['ppg', 'acc', 'gyro', 'mag']) {
     const s = e.stats?.[k], cfg = e.streams?.[k];
     if (!s || !cfg?.sampleRate || !s.hz) continue;
-    const off = Math.abs(s.hz - cfg.sampleRate) / cfg.sampleRate;
-    if (off > 0.1) issues.push([2, `${k.toUpperCase()} runs at ${s.hz.toFixed(1)} Hz, ${cfg.sampleRate} Hz was set`]);
-    else if (off > 0.03) issues.push([1, `${k.toUpperCase()} runs at ${s.hz.toFixed(1)} Hz, ${cfg.sampleRate} Hz was set`]);
+    const off = Math.abs(s.hz - cfg.sampleRate) / cfg.sampleRate, name = k.replace('_', ' ').toUpperCase();
+    const said = sw ? `SensWear's SDK says ${cfg.sampleRate} Hz` : `${cfg.sampleRate} Hz was set`;
+    if (off > 0.1) issues.push([2, `${name} runs at ${s.hz.toFixed(1)} Hz, ${said}`]);
+    else if (off > 0.03) issues.push([1, `${name} runs at ${s.hz.toFixed(1)} Hz, ${said}`]);
     const lost = s.lost / ((s.samples + s.lost) || 1);
     if (lost > 0.03) issues.push([2, `${(lost * 100).toFixed(1)}% of ${k.toUpperCase()} lost`]);
     else if (lost > 0.005) issues.push([1, `${(lost * 100).toFixed(1)}% of ${k.toUpperCase()} lost`]);

@@ -157,6 +157,16 @@ test('a sim session records every stream, logs gaps, and reaches the Drive folde
     else expect(holes).toBe(0);
   }
 
+  // Requirement: session time never runs backwards within a stream (added 2026-10-08: v0.1.0 stepped back by up
+  // to 7 ms whenever the clock offset estimate improved, which breaks any tool that expects sorted time).
+  for (const [id, who] of [[AMIR, 'John-Smith'], [OMAR_BACK, 'Mike-Parsons']]) {
+    for (const s of ['ppg', 'acc', 'gyro', 'mag']) {
+      const t = csv(f(id, who, s)).map((r) => Number(r.t_session_s));
+      const back = t.findIndex((x, i) => i > 0 && x <= t[i - 1]);
+      expect(back, `${id} ${s}: t_session_s not increasing at row ${back}`).toBe(-1);
+    }
+  }
+
   // Requirement: marks record time, label, text, target, and the sample index of every targeted stream.
   expect(ann.map((a) => a.label)).toEqual(['Heavy', 'Adjusted', 'HR looks wrong']);
   const heavy = ann[0], adjusted = ann[1];

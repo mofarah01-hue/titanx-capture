@@ -8,6 +8,7 @@ import { folderState, pickFolder, allowSaving, writeTest, isSharedFolder } from 
 import { kvGet, kvSet, kvClear } from '../core/storage/kv.js';
 import { loadRegistry, saveRegistry, emptyRegistry, upsertAthlete, upsertSensor } from '../core/registry.js';
 import { SimRadio, SIM_IDS } from '../core/sim/fake-sensor.js';
+import { SimSensWearRadio, SIM_SW_IDS } from '../core/sim/fake-senswear.js';
 import { zipToBlob } from '../core/storage/zip.js';
 import { S, bus, emit, now, ingest, newData, log, athletesInView, slotState } from './state.js';
 import { initLinks, connect, connectSim, disconnectAll } from './links.js';
@@ -21,8 +22,12 @@ import * as ses from './views/session.js';
 import * as planView from './views/plan.js';
 import { startRun, advance, skip } from '../core/plans.js';
 import { openHelp } from './views/help.js';
+import * as eng from './views/eng.js';
+import * as cmp from './views/compare.js';
 
 const params = new URLSearchParams(location.search);
+// senswear.html sets data-kind="senswear": same front end, SensWear back end (DECISIONS D42, D45).
+S.kind = document.documentElement.dataset.kind === 'senswear' ? 'senswear' : 'polar';
 S.sim = Math.max(0, Math.min(10, parseInt(params.get('sim') || '0', 10) || 0));
 // The live link is a demo until the Phase 1 release: simulated sensors only, never a real one.
 S.demo = PAGES_DEMO && location.hostname.endsWith('github.io');
@@ -34,7 +39,7 @@ S.pitch = S.sim > 0 && params.get('pitch') === '1';
 if (S.pitch) document.documentElement.classList.add('pitch');
 const CKPT_S = parseInt(params.get('ckpt') || '', 10) || undefined; // tests only: Drive copy interval in seconds (default 300)
 
-let worker, wake, W = {};
+let worker, wake, W = {}, simRadio = null;
 const pending = new Map();
 const ask = (msg, reply) => new Promise((resolve, reject) => { pending.set(reply, { resolve, reject }); worker.postMessage(msg); });
 const appInfo = () => ({ version: VERSION, built: BUILT, userAgent: navigator.userAgent, platform: navigator.userAgentData?.platform || navigator.platform, simulated_sensors: S.sim || 0 });
@@ -49,6 +54,7 @@ async function boot() {
   }
   S.env = browserCheck();
   if (!S.env.ok && !(S.sim && 'storage' in navigator)) { gate(S.env); return; }
+  if (S.kind === 'senswear') document.title = 'Titan X · SensWear';
   shell();
   readTokens();
   worker = new Worker(new URL('../core/capture-worker.js', import.meta.url), { type: 'module' });
@@ -58,8 +64,9 @@ async function boot() {
   wake = createWakeLock((on) => { S.wake = on; });
 
   let radio = null;
-  if (S.sim) { radio = new SimRadio(S.sim, { distinct: S.sim >= 8 }); seedSimRegistry(); S.bluetooth = true; }
+  if (S.sim) { radio = S.kind === 'senswear' ? new SimSensWearRadio(S.sim) : new SimRadio(S.sim, { distinct: S.sim >= 8 }); seedSimRegistry(); S.bluetooth = true; }
   else watchBluetooth((on) => { S.bluetooth = on; banners(); });
+  simRadio = radio;
   initLinks(worker, radio);
 
   const f = await folderState();
@@ -80,7 +87,7 @@ async function boot() {
   setInterval(tick, 250);
   setInterval(checkDegraded, 5000);
   requestAnimationFrame(frame);
-  go(W.done || S.sim ? 'home' : 'wizard');
+  go(W.done || S.sim || S.kind === 'senswear' ? 'home' : 'wizard');
 }
 
 function gate(env) {
@@ -91,6 +98,13 @@ function gate(env) {
 }
 
 function seedSimRegistry() {
+  if (S.kind === 'senswear') {
+    const reg = emptyRegistry();
+    const people = [['Test wearer', 190, 'forehead'], ['Second wearer', 195, 'left_ear'], ['Third wearer', null, 'right_ear']];
+    for (let i = 0; i < Math.min(3, S.sim); i++) { const [name, maxHr, position] = people[i]; const a = upsertAthlete(reg, { name, maxHr }); upsertSensor(reg, SIM_SW_IDS[i], { athleteId: a.id, position, mode: 'senswear' }); }
+    S.reg = reg; S.regSource = 'sim';
+    return;
+  }
   // Up to 7: one athlete wears two sensors (forehead, and back of head in Max rate mode) and one has
   // no max HR set, to show those cases. 8 to 10: a room of separate athletes, all in Polar mode.
   const room = S.sim >= 8;
@@ -112,8 +126,8 @@ function shell() {
   document.body.innerHTML = '';
   document.body.append(el(`<div class="app">
     <header class="top">
-      <div class="brand"><span class="tx">TITAN X</span><span class="sep"></span><span class="sub">SA7A LABS</span>${S.sim ? '<span class="simtag">SIMULATED</span>' : ''}
-        <span class="views" role="group" aria-label="View"><button data-view="live">Live</button><button data-view="timeline">Timeline</button><button data-view="plan">${T.plan.tab}</button></span></div>
+      <div class="brand"><span class="tx">TITAN X</span><span class="sep"></span><span class="sub">${S.kind === 'senswear' ? 'SENSWEAR · ENGINEERING' : 'SA7A LABS'}</span>${S.sim ? '<span class="simtag">SIMULATED</span>' : ''}
+        <span class="views" role="group" aria-label="View"><button data-view="live">Live</button><button data-view="timeline">Timeline</button><button data-view="plan">${T.plan.tab}</button><button data-view="eng">Engineering</button><button data-view="compare">Compare</button></span></div>
       <div class="rec idle" id="rec"><i class="dot" aria-hidden="true"></i><span class="clock" id="clock">00:00:00</span><span class="rec-l" id="recl">NOT RECORDING</span></div>
       <div class="hright">
         <button class="store" id="store" title="Save folder">${ICO.cloud}<span><b id="storeName">Sa7a Drive</b> <span class="dim" id="storeTxt"></span></span></button>
@@ -160,7 +174,7 @@ const ctx = {
   openSetup: () => go('wizard'),
 };
 function go(view, arg) {
-  live.unmountLive(); mon.unmountMonitor(); tl.unmountTimeline(); wiz.unmountWizard(); ses.unmountSession();
+  live.unmountLive(); mon.unmountMonitor(); tl.unmountTimeline(); wiz.unmountWizard(); ses.unmountSession(); eng.unmountEng(); cmp.unmountCompare();
   S.view = view; S.noAutoRecord = view === 'wizard';
   const box = document.createElement('div');
   $('#main').replaceChildren(box);
@@ -168,6 +182,8 @@ function go(view, arg) {
   else if (view === 'monitor') mon.mountMonitor(box, arg, () => go('live'));
   else if (view === 'timeline') tl.mountTimeline(box);
   else if (view === 'plan') planView.mountPlan(box, planCtx);
+  else if (view === 'eng') eng.mountEng(box, { radio: () => simRadio, openMonitor: (id) => go('monitor', id) });
+  else if (view === 'compare') cmp.mountCompare(box);
   else if (view === 'wizard') wiz.mountWizard(box, { W, save: (w) => kvSet('wizard', w), pickFolder: wizardPick, createListHere, connectTest: () => connect(null), startSession: () => go(S.session ? 'live' : 'checklist') });
   else if (view === 'checklist') ses.mountChecklist(box, ctx);
   else if (view === 'end') ses.mountEnd(box, ctx);
@@ -191,7 +207,7 @@ async function startSession(label) {
   const drive = S.folder.permission === 'granted' ? S.folder.handle : null;
   S.session = { label, startPerf: performance.now(), startUnix: Date.now(), name: null };
   S.marks = []; S.gaps = []; S.hiddenWhileRecording = false; S.plan = null; S.phases = [];
-  for (const e of S.links.values()) { e.data = newData(); e.ppgFilter = null; e.moveAcc = null; if (e.linkState?.state === 'streaming') e.streamingSince = now(); }
+  for (const e of S.links.values()) { e.data = newData(); e.ppgFilters = null; e.pcEst = null; e.pcHr = null; e.moveAcc = null; if (e.linkState?.state === 'streaming') e.streamingSince = now(); }
   worker.postMessage({ type: 'session-start', label, startedUnixMs: S.session.startUnix, drive, app: appInfo(), registry: S.sim ? null : S.reg, checkpointS: CKPT_S });
   wake.start();
   log('info', `session started: ${label}`);
@@ -410,6 +426,8 @@ function tick() {
   else if (S.view === 'monitor') mon.refreshMonitor(t);
   else if (S.view === 'timeline') tl.refreshTimeline(t);
   else if (S.view === 'plan') planView.refreshPlan(t);
+  else if (S.view === 'eng') eng.refreshEng(t);
+  else if (S.view === 'compare') cmp.refreshCompare(t);
   else if (S.view === 'wizard') wiz.refreshWizard();
   else ses.refreshSession();
   banners();
@@ -419,6 +437,7 @@ function frame() {
   const t = now();
   if (S.view === 'live') live.drawFrame(t);
   else if (S.view === 'monitor') mon.drawMonitor(t);
+  else if (S.view === 'eng') eng.drawEng(t);
   requestAnimationFrame(frame);
 }
 
