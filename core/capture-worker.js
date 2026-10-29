@@ -59,7 +59,7 @@ function stream(d, key) {
   let s = d.streams[key];
   if (!s) {
     s = { key, i: 0, prevTs: new Map(), frames: 0, badFrames: 0, lostSamples: 0, frameTypes: new Set(), file: null, cols: null,
-      rateWin: [], hz: null, arrWin: [], arrivalHz: null, lastRx: null, disp: { t: [], v: [], ch: 1 } };
+      rateWin: [], hz: null, arrWin: [], arrivalHz: null, lastRx: null, disp: { t: [], v: [], ch: 1 }, ooo: 0, lat: [], latAt: -1, lat50: null, lat95: null };
     d.streams[key] = s;
   }
   return s;
@@ -162,6 +162,7 @@ async function onPmd(d, bytes, rx) {
   if (!key) { log('warn', `${d.id}: frame of type ${MEASUREMENT_TYPE_NAME[f.measType] ?? f.measType} ignored`); return; }
   const s = stream(d, key), cfg = d.cfg[key] || {};
   const prev = s.prevTs.get(f.frameType) ?? 0n;
+  if (prev !== 0n && f.timestampNs <= prev) s.ooo++;
   s.prevTs.set(f.frameType, f.timestampNs); // as the SDK does: even if decoding fails below
   s.frameTypes.add(f.frameType | (f.compressed ? 0x80 : 0));
   const nominal = s.hz || cfg.sampleRate || 0;
@@ -190,6 +191,7 @@ async function onPmd(d, bytes, rx) {
 
   const lastS = Number(dec.timestampNs) / 1e9;
   const off = offsetFor(d, rx, lastS);
+  delay(s, rx, rx - (lastS + off));
   if (store) await ensureFile(d, s, dec.channelNames);
   const n = dec.count, ch = dec.channels, first = s.i;
   let text = '';
@@ -317,6 +319,7 @@ async function onSw(d, kind, bytes, rx) {
   const sensorS = Number(tick) / (spec.clock === 'ms' ? 1e3 : 1e6);
   const s = stream(d, kind), nominal = s.hz || d.cfg[kind]?.sampleRate || 0;
   const off = swOffset(d, spec.clock, rx, sensorS), sess = sensorS + off;
+  delay(s, rx, rx - sess);
   if (s.prevS != null && nominal) {
     const dt = sensorS - s.prevS;
     if (dt > 1.5 / nominal) {
@@ -324,7 +327,7 @@ async function onSw(d, kind, bytes, rx) {
       s.lostSamples += missing;
       dropouts.push({ device_id: d.id, stream: kind, kind: 'packets', at_session_s: round(rx, 3), from_sensor: String(s.prevTick), to_sensor: String(tick), missing_samples_est: missing });
       post({ type: 'gap', id: d.id, stream: kind, from: sess - dt, to: sess, missing });
-    } else if (dt <= 0) log('warn', `${d.id} ${kind}: board time stamp went backwards or repeated (${s.prevTick} then ${tick})`);
+    } else if (dt <= 0) { s.ooo++; log('warn', `${d.id} ${kind}: board time stamp went backwards or repeated (${s.prevTick} then ${tick})`); }
     else s.rateWin.push([rx, 1, dt]);
   }
   while (s.rateWin.length && s.rateWin[0][0] < rx - 10) s.rateWin.shift();
@@ -336,6 +339,18 @@ async function onSw(d, kind, bytes, rx) {
   if (!store) { s.i++; return; }
   await swOpen(d, s, spec);
   store.append(s.file, `${s.i++},${sess.toFixed(4)},${tick},${rx.toFixed(4)},${vals.map((v) => (kind === 'quat' ? round(v, 6) : v)).join(',')}\n`, 1);
+}
+
+// Delay of each packet above the least delayed one (the offset is the smallest receive minus sensor
+// time seen): how long the radio and the sensor's buffering held it. Median and 95th percentile over
+// the last 10 s, worked out at most once a second.
+function delay(s, rx, sec) {
+  s.lat.push([rx, sec]);
+  if (s.lat[0][0] < rx - 10) { let k = 0; while (k < s.lat.length && s.lat[k][0] < rx - 10) k++; s.lat.splice(0, k); }
+  if (rx - s.latAt < 1) return;
+  s.latAt = rx;
+  const v = s.lat.map((x) => x[1]).sort((a, b) => a - b);
+  s.lat50 = v[Math.floor(v.length / 2)]; s.lat95 = v[Math.min(v.length - 1, Math.floor(v.length * 0.95))];
 }
 
 function rmssd(d) {
@@ -354,7 +369,7 @@ function sendDisplay() {
       out[k] = { t, v, ch: s.disp.ch || 1 }; transfer.push(t.buffer, v.buffer);
       s.disp.t = []; s.disp.v = [];
     }
-    const stats = Object.fromEntries(Object.entries(d.streams).map(([k, s]) => [k, { hz: s.hz, arrivalHz: s.arrivalHz, samples: s.i, frames: s.frames, lost: s.lostSamples, bad: s.badFrames, lastRx: s.lastRx }]));
+    const stats = Object.fromEntries(Object.entries(d.streams).map(([k, s]) => [k, { hz: s.hz, arrivalHz: s.arrivalHz, samples: s.i, frames: s.frames, lost: s.lostSamples, bad: s.badFrames, lastRx: s.lastRx, ooo: s.ooo, lat50: s.lat50, lat95: s.lat95 }]));
     post({ type: 'display', id: d.id, data: out, stats, hr: d.hr.last, hrRx: d.hr.lastRx, rmssd: rmssd(d), offset: d.offset }, transfer);
   }
 }

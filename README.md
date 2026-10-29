@@ -21,6 +21,15 @@ The same app for the SensWear board (nRF54L15 main board, MAX30101 PPG board, de
 
 What the stock SensWear firmware does and does not allow, read from its source, is in `core/senswear/firmware-facts.js` and in AI-Modeling `Personal\Titan-X\Boards\SensWear-Reference\FINDINGS.md`. In short: over Bluetooth only stream switches, batching, LED colour, vibration and clock; no rates, LED currents or registers; no shell in preset builds; flashing over SWD only. The register editor works in sim; on the real board it needs a firmware with a register service.
 
+## Engineering page (`engineering.html`, added 2026-10-29)
+
+Link quality for one or two devices side by side: a Polar Verity Sense, a SensWear board, or one of each (`?sim=1` for simulated ones). Records nothing; the capture pages are unchanged. On the iPad: Jabarin, Titan X, Pages, Titan X engineering.
+
+- Per device: link state, reconnects, RSSI (not available: Web Bluetooth gives none for a connected device; the Jabarin bridge would have to read it), notifications per second against expected (SensWear: one sample per notification), interval, jitter, p95, max and stalls from receive times (`core/linkstats.js`).
+- Per stream, from the sensor's time stamps in the capture worker: expected and measured rate, arrival rate, lost samples, gaps, out of order time stamps, bad frames, and packet delay above the quickest packet (p50 / p95).
+- Live raw plot of any stream and channel, and the same signal through a low-pass, high-pass or band-pass filter (`core/algo/filters.js`, RBJ cookbook Butterworth sections) at the measured rate, restarted after every gap.
+- SensWear facts it relies on (confirmed by the SensWear chat against firmware 5c4f855, 2026-10-29): no sequence numbers or RSSI characteristic; stock rates PPG 200 Hz per colour, IMU 100 Hz, about 900 notifications/s in all; notifications come in bursts (PPG at the FIFO interrupt, IMU every 100 ms drain), so jitter is large by design. PPG time stamps are filled in per FIFO batch, so a sample lost inside the chip does not show as a gap.
+
 ## What works (v0.0.1, 2026-09-25, tested in sim mode only)
 
 | Area | State |

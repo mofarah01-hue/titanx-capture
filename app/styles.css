@@ -373,3 +373,21 @@ table.cmp th,table.cmp td{padding:8px 10px;border-top:1px solid var(--line);text
 table.cmp thead th{color:var(--dim);font-size:12px;letter-spacing:.04em}
 .chip{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;border:1px solid currentColor;margin-right:4px}
 .chip.ok{color:var(--ok)} .chip.bad{color:var(--bad)} .chip.warn{color:var(--warn)} .chip.fw{color:#6D28D9} .chip.unv{color:var(--dim)}
+
+/* Engineering page (engineering.html, app/eng-page.js): one or two devices side by side */
+.engx main{padding:14px 18px}
+.engx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:14px;align-items:start;max-width:1600px;margin:0 auto}
+.engx-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.engx-h h3{margin:0}
+.engx-h .spacer{flex:1}
+.engx-slot h4{margin:14px 0 4px;font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--dim)}
+.engx-slot p.dim{font-size:12px;margin:4px 0 0}
+.engx-kv{border-collapse:collapse;font-size:13px}
+.engx-kv th{text-align:left;color:var(--dim);font-weight:700;padding:2px 12px 2px 0;white-space:nowrap;vertical-align:top}
+.engx-kv td{padding:2px 0}
+.engx-scroll{overflow-x:auto}
+.engx-scroll .health{width:100%;font-size:12px;border-collapse:collapse}
+.engx-st{font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.engx-st.streaming{color:var(--ok)} .engx-st.reconnecting,.engx-st.connecting{color:var(--warn)} .engx-st.failed,.engx-st.disconnected{color:var(--bad)}
+.engx .ctl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:8px 0}
+.engx .ctl label,.engx-h label{display:inline-flex;align-items:center;gap:6px}
