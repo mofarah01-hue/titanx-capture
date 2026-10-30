@@ -5,3 +5,6 @@ tests/.out/
 *.crswap
 .DS_Store
 Thumbs.db
+
+# PC upload receiver token (tools/receive.mjs --new-token)
+tools/receive.token

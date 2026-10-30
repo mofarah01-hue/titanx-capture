@@ -60,7 +60,7 @@ export function drawLane(c, spec, t, pins = []) {
     if (!spec.auto) { ctx.fillStyle = C.dim; ctx.fillText(tick(v), pl - 6, y); }
   }
   if (spec.auto && spec.unitLabel) { ctx.fillStyle = C.dim; ctx.fillText(spec.unitLabel, pl - 6, Y((lo + hi) / 2)); }
-  const step = W <= 12 ? 2 : W <= 60 ? 10 : 60;
+  const step = W <= 12 ? 2 : W <= 60 ? 10 : W <= 600 ? 60 : W <= 3600 ? 300 : 900;   // past runs show whole hours
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   for (let m = Math.ceil(t0 / step) * step; m <= t; m += step) {
     if (m < 0) continue;

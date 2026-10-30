@@ -60,6 +60,7 @@ test('SensWear sim: connect, record every stream at the true rates, log gaps, ed
 
   // Requirement: the engineering view reads and writes the PPG chip's registers through the debug board's shell.
   await page.getByRole('button', { name: 'Engineering', exact: true }).click();
+  await page.getByRole('button', { name: 'Device', exact: true }).click();   // Engineering opens on HR lab; the board is on Device
   await expect(page.locator('[data-k="board"]')).toContainText('board clock was 2026-01-01'); // clock fixed on connect
   await page.getByRole('button', { name: 'Connect the simulated debug board' }).click();
   await page.getByRole('button', { name: 'Read all' }).click();
@@ -71,6 +72,7 @@ test('SensWear sim: connect, record every stream at the true rates, log gaps, ed
   await expect(led3.locator('[data-k="v"]')).toHaveText('0x06');           // 1.2 mA, read back from the chip
   await expect(page.locator('[data-k="ratecheck"]')).toContainText('Not allowed'); // 3200 sps, 3 LEDs, 215 µs
   await page.screenshot({ path: `${OUT}/sw-engineering.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Titan X', exact: true }).click();   // back to the coach mode; the sensor stays connected
   await page.getByRole('button', { name: 'Live', exact: true }).click();
 
   await page.locator('#bEnd').click();

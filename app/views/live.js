@@ -150,7 +150,7 @@ export function fillKpis(root2, e, st, t) {
     if (o) {
       setText(o, p ? String(Math.round(p.bpm)) : '--'); o.classList.toggle('dash', !p);
       setText(root2.querySelector('[data-k="oursU"]'), p ? 'bpm' : '');
-      setHTML(root2.querySelector('[data-k="oursZ"]'), p ? `${zoneBadge(zoneFor(e.id, p.bpm))}<span class="pend">quality ${(p.quality * 100).toFixed(0)} %</span>` : `<span class="pend">${e.pcEst?.status?.why || T.hr.pcPending}</span>`);
+      setHTML(root2.querySelector('[data-k="oursZ"]'), p ? `${zoneBadge(zoneFor(e.id, p.bpm))}<span class="pend">quality ${(p.quality * 100).toFixed(0)} %</span>` : `<span class="pend">${e.mhrLast?.why || T.hr.pcPending}</span>`);
     }
   }
   if (sw) {

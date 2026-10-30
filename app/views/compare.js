@@ -55,7 +55,7 @@ export function refreshCompare(t) {
     v.acc = acc?.hz ? `${acc.hz.toFixed(1)} Hz` : e.kind === 'senswear' ? 'off or waiting' : 'waiting';
     const h = liveHr(e, t), p = pcHr(e, t);
     v.hr = h != null ? `${h} bpm from the sensor` : e.kind === 'senswear' ? 'none (as expected)' : 'waiting';
-    v.pc = p ? `PC HR ${Math.round(p.bpm)} bpm, quality ${(p.quality * 100).toFixed(0)} %` : e.pcEst?.status?.why || 'waiting';
+    v.pc = p ? `PC HR ${Math.round(p.bpm)} bpm, quality ${(p.quality * 100).toFixed(0)} %` : e.mhrLast?.why || 'waiting';
     const lost = Object.values(e.stats || {}).reduce((a, s) => a + (s.lost || 0), 0);
     v.lost = `${lost} samples so far`;
   }

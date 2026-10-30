@@ -1,8 +1,8 @@
 // Engineering view: everything about one connected sensor that the athlete facing views leave out.
 // SensWear: board and power facts, stream switches and rates, LED and vibration, the serial console of
 // the debug board, the MAX30101 register editor, firmware. Polar: what Polar lets us see and change.
-// Both: the signal cleaning chain, from raw PPG to our PC side heart rate, drawn live.
-import { S, now, slotIds, athleteName, pcHr, liveHr } from '../state.js';
+// The heart rate chain itself is on the HR lab and Motion HR tabs.
+import { S, now, slotIds, athleteName } from '../state.js';
 import { esc, setHTML, setText, $, $$, toast } from '../ui.js';
 import { drawLane } from '../draw.js';
 import { ShellPort, serialSupported, i2cRead, i2cWrite } from '../../core/senswear/shell.js';
@@ -31,14 +31,12 @@ export function mountEng(container, c) {
   </div>`;
   $('[data-k="dev"]', root)?.addEventListener('change', (e) => { sel = e.target.value; mountEng(root, ctx); });
   if (!sel) return;
-  lanes = signalLanes(S.links.get(sel));
-  const cs = $$('canvas.lane-c', root); lanes.forEach((L, i) => { L.c = cs[i]; });
   wire();
   refreshEng(now());
 }
 
 function body() {
-  const cards = [boardCard(), streamsCard(), signalCard()];
+  const cards = [boardCard(), streamsCard()];
   if (sw()) cards.push(outputsCard(), consoleCard(), regsCard(), firmwareCard());
   else cards.push(polarLimitsCard());
   return `<div class="eng-grid">${cards.join('')}</div>`;
@@ -61,13 +59,6 @@ const streamsCard = () => `<div class="box"><h3>STREAMS · MEASURED FROM THE SEN
     <p class="dim">The stock firmware reads "off" here after boot but still measures every minute until a value is written.</p>
     <p class="dim">The batch period changes how often IMU samples are sent, not how often they are taken. Sample rate, LED current and pulse width live in the PPG chip's registers: see the register editor.</p>
   </div>` : `<p class="dim">Polar mode streams PPG at 55 Hz and motion at 52 Hz with Polar's heart rate and beat to beat. Max rate mode (Live, full monitor) raises PPG to 176 Hz and ACC and GYRO to 416 Hz and turns Polar's heart rate off. Those are the only rates Polar offers.</p>`}
-</div>`;
-
-const signalCard = () => `<div class="box wide"><h3>SIGNAL CLEANING · GREEN PPG TO HEART RATE, ON THIS PC</h3>
-  <div class="lanes">${['RAW COUNTS', 'BASELINE REMOVED (WHAT THE LIVE VIEW SHOWS)', 'BAND-PASS, BEATS MARKED', 'PC HR AGAINST POLAR HR'].map((n, i) => `<div class="lane"><div class="lane-h"><span class="ln"><span>${n}</span></span><span class="lr" data-k="sl${i}"></span></div><canvas class="lane-c" style="--lh:${i === 3 ? 90 : 70}px"></canvas></div>`).join('')}</div>
-  <div class="ctl"><label class="field inline">Band-pass<input type="number" step="0.1" min="0.2" max="2" data-k="lo" value="0.7" style="width:70px"> to <input type="number" step="0.1" min="2" max="8" data-k="hi" value="3.6" style="width:70px"> Hz <button class="btn" data-a="band">Apply</button></label>
-  <span class="dim" data-k="hrwhy"></span></div>
-  <p class="dim">Runs in this page on the green channel (Polar channel 0, SensWear green). Code: core/algo/filters.js, core/algo/hr.js. Recordings keep the raw counts, so any algorithm can be rerun on them later.${sw() ? ` On the chip instead: ${esc(FW.onChip)}` : ' Polar runs its own algorithm on the sensor; ours cannot run there.'}</p>
 </div>`;
 
 const outputsCard = () => `<div class="box"><h3>OUTPUTS</h3>
@@ -112,16 +103,6 @@ const polarLimitsCard = () => `<div class="box"><h3>WHAT POLAR DOES NOT LET US D
   <li>Polar's heart rate algorithm is closed; we get its output, its beat to beat intervals and raw PPG.</li></ul>
   <p class="dim">Side by side with SensWear: the Compare tab.</p></div>`;
 
-function signalLanes(e) {
-  const d = e.data;
-  return [
-    { key: 'ppg', auto: true, minSpan: 50, win: 10, series: [{ buf: d.ppg, ch: 0, color: 'ppg', lw: 1.2 }], empty: 'No PPG yet' },
-    { key: 'ppg', auto: true, minSpan: 50, win: 10, series: [{ buf: d.ppgf, ch: 0, color: 'ppg' }], empty: 'No PPG yet' },
-    { key: 'bp', auto: true, minSpan: 20, win: 10, series: [{ buf: d.ppgBp, color: 'ppg2' }, { buf: d.beats, color: 'z5', dots: true }], empty: 'Waiting for the measured rate (about 10 s)' },
-    { key: 'hr', range: [40, 210], ticks: [60, 120, 180], win: 120, series: [{ buf: d.hr, color: 'polar', dash: true, lw: 1.6, gapS: 12 }, { buf: d.pcHr, color: 'z5', lw: 1.8, gapS: 5 }], empty: 'No heart rate yet' },
-  ];
-}
-
 // ---------- wiring ----------
 function wire() {
   const link = () => S.links.get(sel)?.link;
@@ -141,11 +122,6 @@ function wire() {
     if (a === 'led') act('LED', () => { const h = $('[data-k="led"]', root).value; return l.setLed(parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)); });
     if (a === 'ledoff') act('LED', () => l.setLed(0, 0, 0));
     if (a === 'buzz') act('Vibration', () => l.haptic([[120, 200], [80, 0], [120, 200]]));
-    if (a === 'band') {
-      const e = S.links.get(sel), lo = Number($('[data-k="lo"]', root).value), hi = Number($('[data-k="hi"]', root).value);
-      if (!(lo > 0 && hi > lo)) { toast('The low edge must be above 0 and below the high edge.'); return; }
-      e.algo = { lo, hi }; e.pcEst = null; toast(`Band-pass now ${lo} to ${hi} Hz.`);
-    }
     if (a === 'usb') act('USB console', openShell);
     if (a === 'scan') act('i2c scan', () => runCmd(`i2c scan ${$('[data-k="bus"]', root)?.value || FW.bus}`));
     if (b.dataset.cmd) act(b.dataset.cmd, () => runCmd(b.dataset.cmd));
@@ -253,10 +229,6 @@ export function refreshEng(t) {
     return `<tr><td>${k.replace('_', ' ').toUpperCase()}</td><td>${cfg?.sampleRate ? `${cfg.sampleRate} Hz` : '--'}</td><td class="${off > 0.1 ? 'bad' : off > 0.03 ? 'warn' : ''}">${s?.hz ? `${s.hz.toFixed(2)} Hz` : '--'}</td><td>${s?.arrivalHz ? `${s.arrivalHz.toFixed(2)} Hz` : '--'}</td><td class="${lost > 0.03 ? 'bad' : lost > 0.005 ? 'warn' : ''}">${s ? `${s.lost} (${(lost * 100).toFixed(1)} %)` : '--'}</td></tr>`;
   }).join(''));
   if (sw()) setHTML($('[data-k="sat"]', root), saturation(e, t));
-  const p = pcHr(e, t), ref = liveHr(e, t);
-  setText($('[data-k="sl3"]', root), `PC ${p ? Math.round(p.bpm) : '--'} bpm${sw() ? '' : ` · Polar ${ref ?? '--'} bpm`}`);
-  setText($('[data-k="sl2"]', root), `${e.pcEst ? `${e.pcEst.fs.toFixed(1)} Hz, ${e.algo?.lo ?? 0.7} to ${e.algo?.hi ?? 3.6} Hz` : ''}`);
-  setText($('[data-k="hrwhy"]', root), e.pcEst?.status?.why || '');
 }
 
 /** Any PPG colour sitting at the 18 bit ceiling in the last 2 s: the pulse is clipped away. */

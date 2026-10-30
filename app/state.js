@@ -2,7 +2,7 @@
 // write into it. Nothing here touches the DOM.
 import { sensorInfo, maxHrOf, zoneOf, emptyRegistry } from '../core/registry.js';
 import { current, targetStatus, zoneBpm } from '../core/plans.js';
-import { createHrEstimator } from '../core/algo/hr.js';
+import { createMotionHr, layoutFor, defaultConfig } from '../core/algo/motionhr.js';
 
 export const bus = new EventTarget();
 export const emit = (what) => bus.dispatchEvent(new CustomEvent('change', { detail: what }));
@@ -23,6 +23,7 @@ export const S = {
   appT0: performance.now(),
   update: null, hiddenWhileRecording: false, bluetooth: true, wake: false, degraded: false,
   logs: [],
+  mhr: defaultConfig(),          // Motion HR settings (Engineering > Motion HR), same for every sensor
 };
 
 /** Session time in seconds (app time before a session starts). */
@@ -56,8 +57,11 @@ export function newData() {
     // SensWear only: red and IR PPG (green is `ppg`), orientation, skin temperature
     ppg_red: new Buf(20, 1), ppg_redf: new Buf(20, 1), ppg_ir: new Buf(20, 1), ppg_irf: new Buf(20, 1),
     quat: new Buf(20, 4), temp: new Buf(0, 1),
-    pcHr: new Buf(0, 1),                                // heart rate from our PC side algorithm (core/algo/hr.js)
-    ppgBp: new Buf(20, 1), beats: new Buf(20, 1),       // its band-passed PPG and the beats it found
+    pcHr: new Buf(0, 1),                                // heart rate from our motion robust engine (core/algo/motionhr.js), gated
+    pcConf: new Buf(0, 1),                              // its confidence 0..1, once a second
+    ppgBp: new Buf(20, 1), clean: new Buf(20, 1),       // fused PPG before motion removal, and after (25 Hz)
+    beats: new Buf(20, 1), beatsBad: new Buf(20, 1),    // beats it accepted, and beats it rejected (impact, off the rate)
+    accG: new Buf(20, 1),                               // |a| in g on the same grid
   };
 }
 
@@ -89,7 +93,7 @@ export function ingest(e, m) {
     const b = e.data[k]; if (!b) continue;
     if (d.t.length && (e.data.firstT == null || d.t[0] < e.data.firstT)) e.data.firstT = d.t[0];
     b.add(d.t, d.v, d.ch);
-    if (k === 'ppg') { e.data.ppgf.add(d.t, filterPpg(e, d.t, d.v, d.ch), d.ch); pcHrFeed(e, d.t, d.v, d.ch); }
+    if (k === 'ppg') e.data.ppgf.add(d.t, filterPpg(e, d.t, d.v, d.ch), d.ch);
     if (k === 'ppg_red' || k === 'ppg_ir') e.data[`${k}f`].add(d.t, filterPpg(e, d.t, d.v, d.ch, k), d.ch);
     if (k === 'gyro' && d.ch >= 3) e.data.gyroMag.add(d.t, magnitudes(d.t, d.v, d.ch), 1);
     if (k === 'acc' && d.ch >= 3) {
@@ -104,20 +108,32 @@ export function ingest(e, m) {
     }
   }
   e.stats = m.stats; e.hr = m.hr; e.hrRx = m.hrRx; e.rmssd = m.rmssd;
+  mhrFeed(e, m.data);
 }
 
-// Our PC side heart rate, from the first PPG channel (Polar green 0, SensWear green). The estimator is
-// rebuilt when the measured rate settles or changes by more than 5 %, because its filters assume one rate.
-function pcHrFeed(e, t, v, ch) {
-  const hz = e.stats?.ppg?.hz;
-  if (!hz) return;
-  if (!e.pcEst || Math.abs(e.pcEst.fs - hz) / hz > 0.05) {
-    e.pcEst = createHrEstimator(hz, { onSample: (ts, y) => e.data.ppgBp.add([ts], [y], 1), onBeat: (ts, y) => e.data.beats.add([ts], [y], 1) });
+// Our heart rate: every PPG channel, ACC, GYRO and MAG go through the motion robust engine. It is
+// rebuilt when the PPG layout changes (Polar mode 1 channel shown as 4, Max mode, SensWear) or when
+// the Motion HR settings change (resetMhr).
+function mhrFeed(e, data) {
+  const ppg = data.ppg;
+  if (ppg && (!e.mhr || e.mhrCh !== ppg.ch)) {
+    e.mhrCh = ppg.ch;
+    const d = e.data;
+    e.mhr = createMotionHr(S.mhr, layoutFor(e.kind, ppg.ch), {
+      onSample: (t, x) => { d.ppgBp.add([t], [x.fused], 1); d.clean.add([t], [x.clean], 1); if (x.accG != null) d.accG.add([t], [x.accG], 1); },
+      onBeat: (t, y, ok) => (ok ? d.beats : d.beatsBad).add([t], [y], 1),
+      onEstimate: (r) => { e.mhrLast = r; d.pcConf.add([r.t], [r.conf], 1); if (r.bpm != null) { e.pcHr = { t: r.t, bpm: r.bpm, quality: r.conf }; d.pcHr.add([r.t], [r.bpm], 1); } },
+    });
   }
-  for (let i = 0; i < t.length; i++) {
-    const r = e.pcEst.push(t[i], v[i * ch]);
-    if (r) { e.pcHr = r; e.data.pcHr.add([t[i]], [r.bpm], 1); }
-  }
+  if (!e.mhr) return;
+  for (const [k, x] of Object.entries(data)) e.mhr.push(k, x.t, x.v, x.ch);
+  e.mhr.run();
+}
+
+/** New Motion HR settings: every sensor's engine starts again with them. */
+export function resetMhr(cfg) {
+  S.mhr = cfg;
+  for (const e of S.links.values()) { e.mhr = null; e.mhrLast = null; }
 }
 
 /** Our PC side HR if it is fresh (the estimator reports about once a second). */

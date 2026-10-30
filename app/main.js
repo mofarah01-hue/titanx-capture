@@ -13,6 +13,7 @@ import { zipToBlob } from '../core/storage/zip.js';
 import { S, bus, emit, now, ingest, newData, log, athletesInView, slotState } from './state.js';
 import { initLinks, connect, connectSim, disconnectAll } from './links.js';
 import { readTokens } from './draw.js';
+const rereadTokens = readTokens;
 import { ICO, EVENTS, esc, el, $, $$, toast, say, modal, fmtClock, fmtMS } from './ui.js';
 import * as live from './views/live.js';
 import * as mon from './views/monitor.js';
@@ -24,6 +25,11 @@ import { startRun, advance, skip } from '../core/plans.js';
 import { openHelp } from './views/help.js';
 import * as eng from './views/eng.js';
 import * as cmp from './views/compare.js';
+import * as lab from './views/hrlab.js';
+import * as mhrView from './views/mhr.js';
+import { mountRuns, unmountRuns } from './views/runs.js';
+import { uploadSession } from '../core/storage/upload.js';
+import { resetMhr, maxHrFor } from './state.js';
 
 const params = new URLSearchParams(location.search);
 // senswear.html sets data-kind="senswear": same front end, SensWear back end (DECISIONS D42, D45).
@@ -81,13 +87,15 @@ async function boot() {
   else if (!S.sim) { const r = await loadRegistry(null); S.reg = r.reg; S.regSource = r.source; }
 
   W = (await kvGet('wizard')) || {};
+  resetMhr(await mhrView.loadMhr());
   watchForUpdates(VERSION, (info) => { S.update = info; banners(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && S.session) { S.hiddenWhileRecording = true; log('warn', 'window hidden during a session'); } banners(); });
   bus.addEventListener('change', (e) => onChange(e.detail));
   setInterval(tick, 250);
   setInterval(checkDegraded, 5000);
   requestAnimationFrame(frame);
-  go(W.done || S.sim || S.kind === 'senswear' ? 'home' : 'wizard');
+  const startMode = params.get('mode') === 'eng' ? 'eng' : (() => { try { return localStorage.getItem('mode'); } catch { return null; } })();
+  go(startMode === 'eng' ? 'hrlab' : W.done || S.sim || S.kind === 'senswear' ? 'home' : 'wizard');
 }
 
 function gate(env) {
@@ -127,7 +135,8 @@ function shell() {
   document.body.append(el(`<div class="app">
     <header class="top">
       <div class="brand"><span class="tx">TITAN X</span><span class="sep"></span><span class="sub">${S.kind === 'senswear' ? 'SENSWEAR · ENGINEERING' : 'SA7A LABS'}</span>${S.sim ? '<span class="simtag">SIMULATED</span>' : ''}
-        <span class="views" role="group" aria-label="View"><button data-view="live">Live</button><button data-view="timeline">Timeline</button><button data-view="plan">${T.plan.tab}</button><button data-view="eng">Engineering</button><button data-view="compare">Compare</button></span></div>
+        <span class="modes" role="group" aria-label="Mode"><button data-mode="titanx">Titan X</button><button data-mode="eng">Engineering</button></span>
+        <span class="views" role="group" aria-label="View" id="views"></span></div>
       <div class="rec idle" id="rec"><i class="dot" aria-hidden="true"></i><span class="clock" id="clock">00:00:00</span><span class="rec-l" id="recl">NOT RECORDING</span></div>
       <div class="hright">
         <button class="store" id="store" title="Save folder">${ICO.cloud}<span><b id="storeName">Sa7a Drive</b> <span class="dim" id="storeTxt"></span></span></button>
@@ -146,7 +155,8 @@ function shell() {
     </footer>
   </div>`));
   document.body.append(el(`<div class="ver">v${VERSION} · built ${BUILT}</div>`));
-  $$('.views [data-view]').forEach((b) => b.addEventListener('click', () => go(b.dataset.view)));
+  $('#views').addEventListener('click', (ev) => { const b = ev.target.closest('[data-view]'); if (b) go(b.dataset.view); });
+  $$('[data-mode]').forEach((b) => b.addEventListener('click', () => go(lastView[b.dataset.mode])));
   $('#bSetup').addEventListener('click', () => go('wizard'));
   $('#bHelp').addEventListener('click', () => openHelp(debugBundle));
   $('#bEnd').addEventListener('click', endSession);
@@ -173,7 +183,27 @@ const ctx = {
   allowSaving: () => allowSavingClick(),
   openSetup: () => go('wizard'),
 };
+// Two modes on one page, so switching never drops a sensor: Titan X (what coaches see) and Engineering.
+const VIEWS = {
+  titanx: [['live', 'Live'], ['timeline', 'Timeline'], ['plan', T.plan.tab], ['compare', 'Compare']],
+  eng: [['hrlab', 'HR lab'], ['mhr', 'Motion HR'], ['eng', 'Device'], ['runs', 'Past runs']],
+};
+const lastView = { titanx: 'live', eng: 'hrlab' };
+function setMode(view) {
+  const m = VIEWS.eng.some(([v]) => v === view) ? 'eng' : VIEWS.titanx.some(([v]) => v === view) || view === 'monitor' ? 'titanx' : S.mode || 'titanx';
+  if (VIEWS[m].some(([v]) => v === view)) lastView[m] = view;
+  if (m !== S.mode) {
+    S.mode = m;
+    try { localStorage.setItem('mode', m); } catch { /* blocked storage */ }
+    document.documentElement.classList.toggle('engmode', m === 'eng');
+    rereadTokens();
+    $('#views').innerHTML = VIEWS[m].map(([v, n]) => `<button data-view="${v}">${esc(n)}</button>`).join('');
+  }
+  $$('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+}
 function go(view, arg) {
+  setMode(view);
+  lab.unmountHrLab(); mhrView.unmountMhr(); unmountRuns();
   live.unmountLive(); mon.unmountMonitor(); tl.unmountTimeline(); wiz.unmountWizard(); ses.unmountSession(); eng.unmountEng(); cmp.unmountCompare();
   S.view = view; S.noAutoRecord = view === 'wizard';
   const box = document.createElement('div');
@@ -184,11 +214,14 @@ function go(view, arg) {
   else if (view === 'plan') planView.mountPlan(box, planCtx);
   else if (view === 'eng') eng.mountEng(box, { radio: () => simRadio, openMonitor: (id) => go('monitor', id) });
   else if (view === 'compare') cmp.mountCompare(box);
+  else if (view === 'hrlab') lab.mountHrLab(box);
+  else if (view === 'mhr') mhrView.mountMhr(box);
+  else if (view === 'runs') mountRuns(box, { folder: () => (S.folder.permission === 'granted' ? S.folder.handle : null), config: () => S.mhr, maxHr: (id) => maxHrFor(id), upload: (run) => sendRunToPc(run) });
   else if (view === 'wizard') wiz.mountWizard(box, { W, save: (w) => kvSet('wizard', w), pickFolder: wizardPick, createListHere, connectTest: () => connect(null), startSession: () => go(S.session ? 'live' : 'checklist') });
   else if (view === 'checklist') ses.mountChecklist(box, ctx);
   else if (view === 'end') ses.mountEnd(box, ctx);
   else ses.mountHome(box, ctx);
-  $$('.views [data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view || (view === 'monitor' && b.dataset.view === 'live'))));
+  $$('#views [data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view || (view === 'monitor' && b.dataset.view === 'live'))));
   banners();
 }
 
@@ -207,7 +240,7 @@ async function startSession(label) {
   const drive = S.folder.permission === 'granted' ? S.folder.handle : null;
   S.session = { label, startPerf: performance.now(), startUnix: Date.now(), name: null };
   S.marks = []; S.gaps = []; S.hiddenWhileRecording = false; S.plan = null; S.phases = [];
-  for (const e of S.links.values()) { e.data = newData(); e.ppgFilters = null; e.pcEst = null; e.pcHr = null; e.moveAcc = null; if (e.linkState?.state === 'streaming') e.streamingSince = now(); }
+  for (const e of S.links.values()) { e.data = newData(); e.ppgFilters = null; e.mhr = null; e.mhrLast = null; e.pcHr = null; e.moveAcc = null; if (e.linkState?.state === 'streaming') e.streamingSince = now(); }
   worker.postMessage({ type: 'session-start', label, startedUnixMs: S.session.startUnix, drive, app: appInfo(), registry: S.sim ? null : S.reg, checkpointS: CKPT_S });
   wake.start();
   log('info', `session started: ${label}`);
@@ -277,6 +310,49 @@ async function endSession() {
   for (const e of S.links.values()) e.data = newData();
   log('info', `session ended: ${JSON.stringify(summary)}`);
   go('end');
+  const pc = await kvGet('pcUpload').catch(() => null);
+  if (pc?.auto && pc.token && summary?.name) sendToPc(summary.name, 'folder').catch(() => {});
+}
+
+// ---------- to the PC over Tailscale (core/storage/upload.js, tools/receive.mjs) ----------
+/** Address and token of the PC receiver, kept on this device only. Asks when there is none yet. */
+async function pcSettings(force = false) {
+  const cur = (await kvGet('pcUpload').catch(() => null)) || { url: 'https://fenan-desktop.tailcbb45a.ts.net:8447', token: '', auto: true };
+  if (cur.token && !force) return cur;
+  const got = await modal(`<h2>Send recordings to the PC</h2>
+    <p class="dim">Over Tailscale to tools/receive.mjs on the PC. Copy the token from tools/receive.token on the PC; it stays on this device.</p>
+    <label class="field">PC address<input data-u value="${esc(cur.url)}" autocomplete="off"></label>
+    <label class="field">Token<input data-t type="password" value="${esc(cur.token)}" autocomplete="off"></label>
+    <label class="inline"><input type="checkbox" data-a ${cur.auto ? 'checked' : ''}> Send every session when it ends</label>
+    <div class="foot"><button class="btn primary" data-y>Save</button><button class="btn" data-x>Cancel</button></div>`, (d, close) => {
+    d.querySelector('[data-y]').addEventListener('click', () => close({ url: d.querySelector('[data-u]').value.trim(), token: d.querySelector('[data-t]').value.trim(), auto: d.querySelector('[data-a]').checked }));
+    d.querySelector('[data-x]').addEventListener('click', () => close(null));
+  });
+  if (!got) return null;
+  await kvSet('pcUpload', got).catch(() => toast('Not saved on this device; used for this send only.'));
+  return got;
+}
+
+/** A run from Past runs: its own parent folder (device working copy or save folder). */
+async function sendRunToPc(run) {
+  const pc = await pcSettings(); if (!pc?.token) return null;
+  try {
+    const r = await uploadSession(run.parent, run.name, { url: pc.url, token: pc.token });
+    toast(`Sent to the PC: ${r.where}`, 7000);
+    return r;
+  } catch (e) { toast(`Not sent to the PC (${e.stage || 'error'}): ${e.message}`, 12000); throw e; }
+}
+
+/** One session to the PC. source 'folder': the save folder (holds the finished zip); 'device': this device's working copy. */
+async function sendToPc(name, source = 'folder') {
+  const pc = await pcSettings(); if (!pc?.token) return null;
+  try {
+    const dir = source === 'folder' && S.folder.permission === 'granted' ? S.folder.handle : await (await navigator.storage.getDirectory()).getDirectoryHandle('sessions');
+    toast(`Sending ${name} to the PC…`, 8000);
+    const r = await uploadSession(dir, name, { url: pc.url, token: pc.token });
+    toast(`Sent to the PC: ${r.where}`, 7000);
+    return r;
+  } catch (e) { toast(`Not sent to the PC (${e.stage || 'error'}): ${e.message}`, 12000); log('error', `upload ${name}: ${e.message}`); throw e; }
 }
 
 function addMark(label) {
@@ -428,6 +504,7 @@ function tick() {
   else if (S.view === 'plan') planView.refreshPlan(t);
   else if (S.view === 'eng') eng.refreshEng(t);
   else if (S.view === 'compare') cmp.refreshCompare(t);
+  else if (S.view === 'hrlab') lab.refreshHrLab(t);
   else if (S.view === 'wizard') wiz.refreshWizard();
   else ses.refreshSession();
   banners();
@@ -438,6 +515,8 @@ function frame() {
   if (S.view === 'live') live.drawFrame(t);
   else if (S.view === 'monitor') mon.drawMonitor(t);
   else if (S.view === 'eng') eng.drawEng(t);
+  else if (S.view === 'hrlab') lab.drawHrLab(t);
+  else if (S.view === 'mhr') mhrView.drawMhr(t);
   requestAnimationFrame(frame);
 }
 

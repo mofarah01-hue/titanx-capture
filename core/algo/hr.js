@@ -13,8 +13,19 @@ export const MIN_BEAT_S = 60 / 220;  // refractory: no two beats closer than thi
  * Return { bpm, quality } with quality from 0 (guess) to 1 (clean), or null when there is no honest answer.
  */
 export function estimateBpm(intervals) {
-  // TODO(human): turn the intervals into one bpm and a quality score.
-  return null;
+  // Median first: one missed beat (an interval twice as long) or one extra beat (half as long) must not
+  // move the answer. Intervals more than 20 % off the median are dropped, then the rest are averaged.
+  const iv = intervals.filter((x) => x >= MIN_BEAT_S && x <= 2);      // 30 to 220 bpm
+  if (iv.length < 3) return null;
+  const s = [...iv].sort((a, b) => a - b), med = s.length % 2 ? s[(s.length - 1) >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+  const good = iv.filter((x) => Math.abs(x - med) <= 0.2 * med);
+  if (good.length < 3) return null;
+  const mean = good.reduce((a, b) => a + b, 0) / good.length;
+  const cv = Math.sqrt(good.reduce((a, b) => a + (b - mean) ** 2, 0) / good.length) / mean;
+  // share of intervals kept, times regularity (a spread of 15 % of the interval or more scores 0)
+  const quality = (good.length / intervals.length) * Math.max(0, 1 - cv / 0.15);
+  if (quality < 0.2) return null;
+  return { bpm: 60 / mean, quality: Math.round(quality * 100) / 100 };
 }
 
 /** One estimator per PPG stream and sample rate. push() returns an estimate about once a second.

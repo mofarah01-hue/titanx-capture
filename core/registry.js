@@ -76,11 +76,12 @@ export function upsertAthlete(reg, patch) {
   return a;
 }
 
-/** Max HR from the registry, or 220 minus age when only the birth year is known. */
+/** Max HR from the registry, or Tanaka's 208 - 0.7 x age when only the birth year is known (closer than
+ *  220 - age for adults; Tanaka, Monahan and Seals 2001). A measured max always wins. */
 export function maxHrOf(athlete, today = new Date()) {
   if (!athlete) return null;
   if (athlete.maxHr) return athlete.maxHr;
-  if (athlete.birthYear) return 220 - (today.getFullYear() - athlete.birthYear);
+  if (athlete.birthYear) return Math.round(208 - 0.7 * (today.getFullYear() - athlete.birthYear));
   return null;
 }
 

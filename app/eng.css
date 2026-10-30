@@ -1,0 +1,62 @@
+/* Engineering mode (html.engmode): the same page in the Stellar GUI's dark palette, so it is obvious
+   at a glance which mode the page is in. Tokens only; every component keeps its own rules. */
+.modes{display:inline-flex;gap:2px;background:#000;border:1px solid var(--line2);border-radius:999px;padding:3px}
+.modes button{min-height:36px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--dim);font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.modes button[aria-pressed="true"]{background:var(--accent);color:#111}
+html.engmode .modes button[aria-pressed="true"][data-mode="eng"]{background:#33d6e0}
+html.engmode{
+  color-scheme:dark;
+  --bg:#000; --bg2:#0c0e11; --panel:#0c0e11; --card:#15181d; --card2:#1d2128;
+  --line:#1c2027; --line2:#2a2f37; --edge:#2a2f37; --edge-hi:#e9eff6;
+  --text:#e9eff6; --dim:#9aa3ad; --faint:#5d6670; --focus:#33d6e0; --accent:#33d6e0; --accent-ink:#000;
+  --ppg:#10e08a; --ppg1:#0bb873; --ppg2:#33d6e0; --amb:#9aa3ad;
+  --acc:#f2b134; --gyro:#60A5FA; --mag:#7c5cff; --ours:#e9eff6; --polar:#9aa3ad;
+  --ok:#10e08a; --warn:#f2b134; --bad:#ff5d5d;
+}
+html.engmode .top{border-bottom-color:#33d6e0}
+html.engmode .brand .tx{color:#f2c744}
+html.engmode .zb{background:color-mix(in srgb,var(--zc) 16%,#000)}
+html.engmode .zb b{color:var(--zc)}
+html.engmode .events{background:var(--panel)}
+
+/* HR lab */
+.hrlab{padding:14px 18px}
+.hrl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:14px;align-items:start}
+.hrl-h{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
+.hrl-top{display:flex;gap:16px;align-items:center;margin:4px 0 8px}
+.hrl-big{display:flex;align-items:baseline;gap:6px;min-width:150px}
+.hrl-big b{font-size:64px;line-height:1;font-weight:800;letter-spacing:-.02em}
+.hrl-big span{color:var(--dim);font-weight:700}
+.hrl-side{flex:1;display:grid;gap:6px;font-size:13px}
+.zbar{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.zbar i{font-style:normal;font-size:11px;font-weight:800;text-align:center;padding:4px 0;border-radius:4px;background:color-mix(in srgb,var(--zc) 18%,transparent);color:var(--dim);border:1px solid transparent}
+.zbar i.on{background:var(--zc);color:#000;border-color:var(--text)}
+.hrl-kv th{width:150px}
+.hrl-col .lanes{display:grid;gap:8px;margin-top:8px}
+
+/* Motion HR */
+.mhr{padding:14px 18px}
+.mhr-h{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.mhr-h h2{margin:0 8px 0 0}
+.mhr-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start}
+.mhr-grid>div{display:grid;gap:14px}
+@media (max-width:900px){.mhr-grid{grid-template-columns:1fr}}
+.stages{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.stages li{border:1px solid var(--line2);border-radius:var(--r-sm);padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;background:var(--card)}
+.stages li>.dim{flex-basis:100%;font-size:12px;order:1}
+.stages li>label.field,.stages li>label.inline{order:2}
+.stages li.off{opacity:.55}
+.stages .sw{display:flex;align-items:center;gap:8px;font-weight:800;min-height:32px}
+.stages .sw input{width:20px;height:20px}
+.axes input[type=range]{width:90px;vertical-align:middle}
+.axes output{display:inline-block;width:28px;text-align:right;font-weight:700}
+.mhr h3 select{margin-left:8px;font-size:12px}
+
+/* iPad landscape: the mode switch makes the header busy, so drop what the switch already says */
+@media (max-width:1366px){
+  .brand{gap:10px}
+  .brand .sub,.brand .sep{display:none}
+  .views{margin-left:4px}.views button,.modes button{padding:0 10px}
+  .hright{flex-wrap:nowrap}.store .dim{display:none}.store{padding:0 8px}
+  .hbtn{padding:0 8px}
+}

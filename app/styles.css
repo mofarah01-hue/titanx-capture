@@ -391,3 +391,19 @@ table.cmp thead th{color:var(--dim);font-size:12px;letter-spacing:.04em}
 .engx-st.streaming{color:var(--ok)} .engx-st.reconnecting,.engx-st.connecting{color:var(--warn)} .engx-st.failed,.engx-st.disconnected{color:var(--bad)}
 .engx .ctl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:8px 0}
 .engx .ctl label,.engx-h label{display:inline-flex;align-items:center;gap:6px}
+
+/* past runs */
+.runs .health th,.runs .health td{text-align:left;white-space:normal;vertical-align:top}
+.runs .health td:last-child{text-align:right;white-space:nowrap}
+.runs-btns{display:inline-flex;gap:8px}
+.runs-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:14px;margin-bottom:14px;align-items:start}
+.runs .box{margin-bottom:14px}
+.runs-top .box{margin-bottom:0}
+.runs table.kv th{white-space:normal}
+.runs table.kv td.dim,.runs table.kv th:nth-child(3){padding-left:18px}
+.runs .ctl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:0 0 12px}
+.runs input[type=range]{flex:1 1 240px;min-width:160px;min-height:44px;accent-color:var(--focus)}
+.zrow{display:grid;grid-template-columns:150px minmax(60px,1fr) 96px;gap:8px;align-items:center;font-size:12.5px;margin:5px 0}
+.zbar{display:block;height:12px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.zbar i{display:block;height:100%}
+.zv{text-align:right;color:var(--dim);white-space:nowrap}
