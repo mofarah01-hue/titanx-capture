@@ -241,7 +241,10 @@ async function startSession(label) {
   S.session = { label, startPerf: performance.now(), startUnix: Date.now(), name: null };
   S.marks = []; S.gaps = []; S.hiddenWhileRecording = false; S.plan = null; S.phases = [];
   for (const e of S.links.values()) { e.data = newData(); e.ppgFilters = null; e.mhr = null; e.mhrLast = null; e.pcHr = null; e.moveAcc = null; if (e.linkState?.state === 'streaming') e.streamingSince = now(); }
-  worker.postMessage({ type: 'session-start', label, startedUnixMs: S.session.startUnix, drive, app: appInfo(), registry: S.sim ? null : S.reg, checkpointS: CKPT_S });
+  const pc = await kvGet('pcUpload').catch(() => null);
+  const live = pc?.token && pc.live !== false ? { url: pc.url, token: pc.token } : null; // live copy to the PC (core/storage/live.js)
+  S.live = live ? { state: 'starting' } : null;
+  worker.postMessage({ type: 'session-start', label, startedUnixMs: S.session.startUnix, drive, app: appInfo(), registry: S.sim ? null : S.reg, checkpointS: CKPT_S, live });
   wake.start();
   log('info', `session started: ${label}`);
   go('live');
@@ -317,15 +320,16 @@ async function endSession() {
 // ---------- to the PC over Tailscale (core/storage/upload.js, tools/receive.mjs) ----------
 /** Address and token of the PC receiver, kept on this device only. Asks when there is none yet. */
 async function pcSettings(force = false) {
-  const cur = (await kvGet('pcUpload').catch(() => null)) || { url: 'https://fenan-desktop.tailcbb45a.ts.net:8447', token: '', auto: true };
+  const cur = (await kvGet('pcUpload').catch(() => null)) || { url: 'https://fenan-desktop.tailcbb45a.ts.net:8447', token: '', auto: true, live: true };
   if (cur.token && !force) return cur;
   const got = await modal(`<h2>Send recordings to the PC</h2>
     <p class="dim">Over Tailscale to tools/receive.mjs on the PC. Copy the token from tools/receive.token on the PC; it stays on this device.</p>
     <label class="field">PC address<input data-u value="${esc(cur.url)}" autocomplete="off"></label>
     <label class="field">Token<input data-t type="password" value="${esc(cur.token)}" autocomplete="off"></label>
     <label class="inline"><input type="checkbox" data-a ${cur.auto ? 'checked' : ''}> Send every session when it ends</label>
+    <label class="inline"><input type="checkbox" data-l ${cur.live !== false ? 'checked' : ''}> Stream live to the PC while recording</label>
     <div class="foot"><button class="btn primary" data-y>Save</button><button class="btn" data-x>Cancel</button></div>`, (d, close) => {
-    d.querySelector('[data-y]').addEventListener('click', () => close({ url: d.querySelector('[data-u]').value.trim(), token: d.querySelector('[data-t]').value.trim(), auto: d.querySelector('[data-a]').checked }));
+    d.querySelector('[data-y]').addEventListener('click', () => close({ url: d.querySelector('[data-u]').value.trim(), token: d.querySelector('[data-t]').value.trim(), auto: d.querySelector('[data-a]').checked, live: d.querySelector('[data-l]').checked }));
     d.querySelector('[data-x]').addEventListener('click', () => close(null));
   });
   if (!got) return null;
@@ -414,6 +418,10 @@ function onWorker(e) {
   if (pending.has(m.type)) { const p = pending.get(m.type); pending.delete(m.type); p.resolve(m.summary ?? m.bundle ?? m.blob ?? m); return; }
   switch (m.type) {
     case 'storage': S.storage = m.status; break;
+    case 'live': {
+      if (m.status.state === 'stopped' && S.live?.state !== 'stopped') { toast(`Live copy to the PC stopped: ${m.status.error}`, 10000); log('warn', `live: ${m.status.error}`); }
+      S.live = m.status; break;
+    }
     case 'session': if (S.session) S.session.name = m.name; break;
     case 'gap': S.gaps.push({ id: m.id, from: m.from, to: m.to, text: `gap ${(m.to - m.from).toFixed(1)} s, not filled in` }); break;
     case 'recovered': { const ok = m.sessions.filter((s) => s.drive); if (ok.length) toast(`Recovered ${ok.length} session${ok.length > 1 ? 's' : ''} the app did not close, and saved ${ok.length > 1 ? 'them' : 'it'} to ${S.folder.name}.`, 8000); break; }
@@ -452,7 +460,10 @@ function header(t) {
   else if (st?.local === 'error' || st?.drive === 'error') { cls = 'bad'; txt = st.local === 'error' ? 'Saving failed' : 'Drive copy failed'; }
   else if (on && st?.lastLocalWrite) { const s = Math.max(0, Math.round((Date.now() - st.lastLocalWrite) / 1000)); txt = s <= 1 ? 'Saved just now' : `Saved ${s} s ago`; if (s > 5) cls = 'bad'; }
   else txt = f.shared === false ? 'This Mac only' : 'Ready';
+  const lv = on && S.live;
+  if (lv) txt += lv.state === 'ok' ? ' · PC live' : lv.state === 'behind' ? ` · PC ${(lv.behind / 1048576).toFixed(1)} MB behind` : lv.state === 'stopped' ? ' · PC live stopped' : lv.state === 'error' ? ' · PC not reached' : '';
   store.className = `store ${cls}`;
+  store.title = lv?.error || '';
   $('#storeName').textContent = name; $('#storeTxt').textContent = txt;
 }
 

@@ -12,6 +12,7 @@ export const S = {
   env: null, sim: 0, debug: false,
   folder: { handle: null, name: '', permission: 'none', shared: null },
   storage: null,                 // status from the recorder: { local, lastLocalWrite, drive, lastDriveWrite, driveError, bytes }
+  live: null,                    // live copy to the PC: { state: 'ok'|'behind'|'error'|'stopped'|'ended', behind, sent, error }
   reg: emptyRegistry(), regSource: 'new',
   session: null,                 // { name, label, startPerf, startUnix }
   summary: null,                 // result of the last ended session

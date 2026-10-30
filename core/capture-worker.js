@@ -17,6 +17,7 @@ import { parseFrame, decodeFrame } from './pmd/decode.js';
 import { MeasurementType as MT, MEASUREMENT_TYPE_NAME } from './pmd/constants.js';
 import { parseHeartRateMeasurement, parseBatteryLevel } from './ble/gatt-parse.js';
 import { SessionStore, sessionName, safeName, unfinishedSessions, recoverSession } from './recorder.js';
+import { createLive } from './storage/live.js';
 import { zipToBlob } from './storage/zip.js';
 import * as SW from './senswear/protocol.js';
 
@@ -72,6 +73,10 @@ async function startSession(m) {
   session = { name: sessionName(m.label), label: m.label, startedUnixMs: m.startedUnixMs, app: m.app, registry: m.registry };
   store = await SessionStore.start({ name: session.name, drive, checkpointEveryS: m.checkpointS, onStatus: (st) => post({ type: 'storage', status: st }) });
   session.name = store.name;
+  if (m.live?.token && m.live?.url) { // live copy to the PC as it records (core/storage/live.js)
+    try { store.live = createLive({ url: m.live.url, token: m.live.token, session: store.name, onStatus: (st) => post({ type: 'live', status: st }) }); log('info', `live copy to the PC on for ${store.name}`); }
+    catch (e) { log('warn', `live copy to the PC not started: ${e.message}`); }
+  }
   marks = 0; dropouts.length = 0;
   for (const d of devices.values()) Object.assign(d, { streams: {}, hr: { i: 0, last: d.hr.last, lastRx: null }, events: [], battery: [], frameNo: 0, framesOpen: null, offsets: [], offset: null, slew: null, clocks: {} }); // session time restarts at 0
   await store.setManifest(manifest());
@@ -88,7 +93,7 @@ async function endSession() {
   session.endedUnixMs = Date.now();
   for (const d of devices.values()) { d.offsets = []; d.offset = null; d.slew = null; d.clocks = {}; } // app time resumes after the session
   const res = await store.finalize(manifest());
-  const summary = { name: session.name, durationS: (session.endedUnixMs - session.startedUnixMs) / 1000, sensors: devices.size, marks, bytes: store.status.bytes, ...res };
+  const summary = { name: session.name, durationS: (session.endedUnixMs - session.startedUnixMs) / 1000, sensors: devices.size, marks, bytes: store.status.bytes, ...res, live: store.liveResult || null };
   store = null; session = null;
   return summary;
 }

@@ -72,6 +72,7 @@ export class SessionStore {
     this.drive = o.drive || null;
     this.checkpointEveryMs = (o.checkpointEveryS ?? 300) * 1000;
     this.onStatus = o.onStatus || (() => {});
+    this.live = o.live || null;  // live copy to the PC (core/storage/live.js): gets every byte written here
     this.streams = new Map();   // key -> { h, size, ckpt, part, rows }
     this.annotations = [];
     this.manifest = null;
@@ -87,7 +88,7 @@ export class SessionStore {
     const fh = await this.dir.getFileHandle(`${key}.csv`, { create: true });
     const h = await fh.createSyncAccessHandle();
     let size = h.getSize();
-    if (size === 0) { const b = enc.encode(header.join(',') + '\n'); h.write(b, { at: 0 }); size = b.length; }
+    if (size === 0) { const b = enc.encode(header.join(',') + '\n'); h.write(b, { at: 0 }); size = b.length; this.live?.append(`${key}.csv`, b); }
     this.streams.set(key, { h, size, ckpt: 0, part: 0, rows: 0 });
   }
 
@@ -104,18 +105,21 @@ export class SessionStore {
       throw new Error(`Could not save ${key} on this Mac (${e.name === 'QuotaExceededError' ? 'disk full' : e.message}).`);
     }
     s.size += b.length; s.rows += rows; this.status.bytes += b.length;
+    this.live?.append(`${key}.csv`, b);
   }
 
   /** Make appended rows durable. Call about once a second. */
   flush() {
     for (const s of this.streams.values()) s.h.flush();
     this.#setStatus({ local: 'ok', lastLocalWrite: Date.now() });
+    this.live?.tick();
     if (this.drive && Date.now() - this.lastCheckpoint >= this.checkpointEveryMs) this.checkpoint();
   }
 
   // ---------- small JSON records, written at once ----------
   async addAnnotation(mark) {
     this.annotations.push(mark);
+    this.live?.append('annotations.jsonl', JSON.stringify(mark) + '\n');
     await this.#local(async () => {
       const h = await (await this.dir.getFileHandle('annotations.jsonl', { create: true })).createSyncAccessHandle();
       try { const b = enc.encode(JSON.stringify(mark) + '\n'); h.write(b, { at: h.getSize() }); h.flush(); } finally { h.close(); }
@@ -126,6 +130,7 @@ export class SessionStore {
   /** Rewrites manifest.json here and in Drive. Calls may overlap; each write takes the newest manifest. */
   setManifest(manifest) {
     this.manifest = manifest;
+    this.live?.replace('manifest.json', JSON.stringify(manifest, null, 1));
     this.#toDrive(async (d) => driveWrite(d, 'manifest.json', JSON.stringify(this.manifest, null, 1)));
     return this.#local(() => localJson(this.dir, 'manifest.json', this.manifest));
   }
@@ -163,6 +168,7 @@ export class SessionStore {
     this.manifest = manifest;
     await localJson(this.dir, 'manifest.json', manifest);
     await localJson(this.dir, 'annotations.json', this.annotations);
+    if (this.live) this.liveResult = await this.live.end(JSON.stringify(manifest, null, 1));
     await this.driveQueue;
     if (!this.drive) { await markFinished(this.dir, this.name, { drive: false }); return { drive: false, reason: 'No save folder' }; }
     try {
