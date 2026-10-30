@@ -1,0 +1,2 @@
+# BeliefPPG worker venv: workbench/.venv-beliefppg (Python 3.12)
+beliefppg==0.3.1

@@ -1,0 +1,4 @@
+.venv*/
+.synthetic/
+.logs/
+__pycache__/

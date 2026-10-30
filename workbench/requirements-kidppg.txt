@@ -1,0 +1,8 @@
+# KID-PPG worker venv: workbench/.venv-kidppg (Python 3.12). kid-ppg itself pins Python 3.10.8 and TF 2.13, so:
+#   python -m pip install -r requirements-kidppg.txt
+#   python -m pip install --ignore-requires-python --no-deps kid-ppg==0.0.4
+tensorflow==2.21.0
+tf-keras==2.21.0
+tensorflow-probability==0.22.1
+numpy
+scipy

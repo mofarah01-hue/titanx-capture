@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Titan X HR workbench</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<aside id="side">
+  <h1>Titan X HR workbench</h1>
+  <section>
+    <h2>Sessions <span id="sess-count" class="muted"></span></h2>
+    <ul id="sessions"></ul>
+    <p id="dirs" class="muted small"></p>
+  </section>
+  <section id="dev-box" hidden>
+    <h2>Device</h2>
+    <select id="device"></select>
+    <p id="dev-info" class="muted small"></p>
+  </section>
+  <section>
+    <h2>Zones</h2>
+    <label class="row">Age <input id="age" type="number" min="10" max="90" value="30"></label>
+    <label class="row">or max HR <input id="maxhr" type="number" min="100" max="230" placeholder="from age"></label>
+    <p id="zone-info" class="muted small"></p>
+  </section>
+  <section>
+    <h2>Motion levels (std of |a| per second)</h2>
+    <label class="row">low below <input id="lo" type="number" step="0.01" value="0.05"> g</label>
+    <label class="row">high from <input id="hi" type="number" step="0.01" value="0.2"> g</label>
+  </section>
+  <section>
+    <h2>Models</h2>
+    <ul id="models" class="small"></ul>
+  </section>
+</aside>
+<main>
+  <div id="bar">
+    <span id="title">Pick a session</span>
+    <span id="live-badge" class="live" hidden>LIVE</span>
+    <span class="grow"></span>
+    <label class="small"><input type="checkbox" id="follow" checked> follow live</label>
+    <label class="small"><input type="checkbox" id="autorun" checked> re-run lanes every <input id="autorun-s" type="number" value="10" min="3" style="width:3.5em"> s while live (not saved)</label>
+    <button id="reset">Show all</button>
+    <span id="cursor" class="muted small mono"></span>
+  </div>
+  <div id="status" class="small"></div>
+  <section id="variants-box">
+    <div class="box-head"><h2>HR lanes</h2><button id="add">+ Pipeline variant</button><button id="add-model">+ Model / engine</button><button id="run-all" class="primary">Run all</button></div>
+    <div id="variants"></div>
+  </section>
+  <div id="lanes"></div>
+  <section id="table-box">
+    <div class="box-head"><h2>Comparison</h2><span class="muted small">No true HR yet: every pair against every other. MAD = mean absolute difference (bpm), within 5 = share of seconds both agree within 5 bpm, coverage = share of seconds both answer.</span></div>
+    <div id="table"></div>
+  </section>
+</main>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>
