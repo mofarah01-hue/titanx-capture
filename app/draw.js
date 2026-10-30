@@ -34,6 +34,7 @@ const stepFor = (span) => (span <= 120 ? 15 : span <= 600 ? 60 : span <= 3600 ? 
  * pins: [{ t, label, text }], empty: text when nothing to draw.
  */
 export function drawLane(c, spec, t, pins = []) {
+  if (!c.dataset.big) { lastDraw.set(c, { spec, t, pins }); if (exp?.src === c) drawBig(); }
   const { ctx, w, h } = fit(c); ctx.clearRect(0, 0, w, h);
   const pl = 38, pr = 6, pt = 14, pb = 16, pw = w - pl - pr, ph = h - pt - pb;
   const W = spec.win || 10, t0 = t - W;
@@ -95,6 +96,55 @@ export function drawLane(c, spec, t, pins = []) {
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, pt, 3.5, 0, 7); ctx.fill();
     ctx.fillText(mk.text || mk.label, x + 7, pt - 1);
   }
+}
+
+// ---------- tap a lane to enlarge it (Mo, 2026-10-30: clean peaks are hard to see on the iPad) ----------
+// Every lane goes through drawLane, so one listener covers every page. The big view is redrawn at full
+// size and device pixel ratio from the same buffers each time the lane itself is drawn, so it stays live;
+// it keeps its own y range and window. Pause freezes the time it shows.
+const lastDraw = new WeakMap(); // lane canvas -> its last { spec, t, pins }
+let exp = null;                 // { src, big, spec, win, paused, t }
+const WINS = [5, 10, 30];
+
+function drawBig(force = false) {
+  const d = lastDraw.get(exp.src); if (!d) return;
+  if (exp.paused && exp.frozen && !force) return;        // paused: hold the picture still
+  exp.frozen = exp.paused;
+  if (!exp.paused) exp.t = d.t;
+  Object.assign(exp.spec, d.spec, { win: exp.win || d.spec.win, _r: exp.spec._r, minSpan: d.spec.minSpan });
+  if (exp.win !== exp.lastWin) { exp.spec._r = undefined; exp.lastWin = exp.win; } // new window: fit y again
+  drawLane(exp.big, exp.spec, exp.t, d.pins);
+}
+
+function openBig(src) {
+  const title = src.closest('.lane')?.querySelector('.ln')?.textContent.trim() || 'Trace';
+  const box = document.createElement('div');
+  box.className = 'bigview';
+  box.innerHTML = `<div class="bv-card" role="dialog" aria-modal="true" aria-label="${title.replace(/"/g, '')}, enlarged">
+    <div class="bv-h"><b>${title.replace(/</g, '&lt;')}</b><span class="seg" role="group" aria-label="Window">${WINS.map((s) => `<button class="btn quiet" data-w="${s}">${s} s</button>`).join('')}<button class="btn quiet" data-w="0">Lane</button></span>
+      <button class="btn" data-p>Pause</button><button class="btn" data-x aria-label="Close">Close</button></div>
+    <canvas class="bv-c" data-big="1"></canvas></div>`;
+  document.body.append(box);
+  exp = { src, big: box.querySelector('canvas'), spec: {}, win: (lastDraw.get(src)?.spec.win || 10) > 60 ? 0 : 10, paused: false, t: 0, box }; // past runs: whole run
+  const mark = () => { for (const b of box.querySelectorAll('[data-w]')) b.setAttribute('aria-pressed', String(Number(b.dataset.w) === exp.win)); box.querySelector('[data-p]').textContent = exp.paused ? 'Resume' : 'Pause'; };
+  box.addEventListener('click', (e) => {
+    const w = e.target.closest('[data-w]');
+    if (w) { exp.win = Number(w.dataset.w); mark(); drawBig(true); return; }
+    if (e.target.closest('[data-p]')) { exp.paused = !exp.paused; exp.frozen = false; mark(); return; }
+    if (e.target.closest('[data-x]') || e.target === box) closeBig();
+  });
+  mark(); drawBig();
+}
+
+function closeBig() { exp?.box.remove(); exp = null; }
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', (e) => {
+    const c = e.target.closest?.('canvas.lane-c');
+    if (c && !exp && lastDraw.has(c)) openBig(c);
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && exp) closeBig(); });
+  window.addEventListener('resize', () => { if (exp) drawBig(true); });
 }
 
 /** 60 s of reference heart rate (dashed), or 3 s of raw PPG for a sensor in Max rate mode. */
