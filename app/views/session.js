@@ -59,7 +59,7 @@ export function mountEnd(container, c) {
     <div class="foot"><button class="btn primary big" data-again>Start another session</button><span class="spacer"></span><button class="btn" data-home>Done</button></div>
   </div></div>`;
   root.querySelector('[data-dl]')?.addEventListener('click', () => ctx.download(r.name));
-  root.querySelector('[data-again]').addEventListener('click', () => ctx.toChecklist());
+  root.querySelector('[data-again]').addEventListener('click', () => (S.sim ? ctx.toChecklist() : ctx.home()));
   root.querySelector('[data-home]').addEventListener('click', () => ctx.home());
 }
 

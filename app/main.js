@@ -177,7 +177,7 @@ function fillTargets() {
 const planCtx = { start: (p) => startPlan(p), next: () => nextPhase(), stop: () => stopPlan() };
 const ctx = {
   runDemo: () => runDemo(),
-  toChecklist: () => (S.session ? go('live') : go('home')), // after setup: connect, name or skip, record. No checklist
+  toChecklist: () => (S.session ? go('live') : go('checklist')), // the simulated demo only; real users go home: connect, name or skip, record
   connect: () => connect(null),
   home: () => go('home'),
   startSession: (label) => startSession(label),
