@@ -33,6 +33,7 @@ export const STAGES = [
   ['fusion', 'Channel fusion', 'Unit size channels, weighted by pulse to noise ratio (or your weights)'],
   ['nlms', 'Motion removal (NLMS)', 'Predicts the motion part of the PPG from ACC, GYRO, MAG and subtracts it'],
   ['notch', 'Cadence notch', 'Removes the main movement rhythm unless it sits on the heart rate'],
+  ['beats', 'Beat screening', 'Peak finder on the clean signal; drops beats in an impact, off the tracked rate, or too small. Off: every peak counts'],
   ['estimate', 'HR estimate', 'Spectral peak blended with beat to beat intervals'],
   ['tracker', 'Tracker', 'Limits how fast HR may change, holds through short dropouts'],
   ['gate', 'Quality gate', 'Shows no number below the minimum confidence'],
@@ -47,6 +48,7 @@ export function defaultConfig() {
     fusion: { on: true, auto: true, weights: [1, 1, 1] },
     nlms: { on: true, mu: 0.1, taps: 8, w: { acc: [1, 1, 1], gyro: [1, 1, 1], mag: [0, 0, 0] } },
     notch: { on: true, width: 0.1, minG: 0.08 },
+    beats: { on: true, tol: 0.3, minProm: 0.6 },
     estimate: { on: true, spectral: 0.7, peaks: 0.3 },
     tracker: { on: true, maxStep: 10, hold: 5 },
     gate: { on: true, min: 0.45 },
@@ -219,8 +221,10 @@ export function createMotionHr(cfgIn, layout, o = {}) {
     cleanRing.push(clean);
     // beats on the clean signal
     amp += (Math.abs(clean) - amp) * (1 / (fs * 2));
-    if (t1 != null && y1 > y2 && y1 >= clean && y1 > 0.6 * amp && (lastBeat == null || t1 - lastBeat >= MIN_BEAT_S)) {
-      const ok = !(cfg.impact.on && frozen) && !(track && cfg.tracker.on && lastBeat != null && Math.abs(60 / (t1 - lastBeat) - track) > Math.max(25, 0.3 * track) && beats.length > 3);
+    const scr = cfg.beats.on, prom = scr ? cfg.beats.minProm : 0.3;
+    if (t1 != null && y1 > y2 && y1 >= clean && y1 > prom * amp && (lastBeat == null || t1 - lastBeat >= MIN_BEAT_S)) {
+      // screening: no beat inside an impact freeze, none that implies a rate far off the tracked one
+      const ok = !scr || (!(cfg.impact.on && frozen) && !(track && lastBeat != null && Math.abs(60 / (t1 - lastBeat) - track) > Math.max(25, cfg.beats.tol * track) && beats.length > 3));
       beats.push([t1, ok]); lastBeat = t1;
       o.onBeat?.(t1, y1, ok);
     }

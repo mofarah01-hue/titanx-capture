@@ -16,6 +16,7 @@ export const S = {
   session: null,                 // { name, label, startPerf, startUnix }
   summary: null,                 // result of the last ended session
   links: new Map(),              // deviceId -> entry (see links.js)
+  gaps: [],                      // link gaps for the timeline (main.js trackLinkGaps; reset when a session starts)
   marks: [],                     // this session: { t, label, text, target, who }
   plan: null,                    // running training plan (core/plans.js startRun), or null
   phases: [],                    // this session's plan phases for the timeline: { from, to, name, zone }
@@ -62,6 +63,9 @@ export function newData() {
     ppgBp: new Buf(20, 1), clean: new Buf(20, 1),       // fused PPG before motion removal, and after (25 Hz)
     beats: new Buf(20, 1), beatsBad: new Buf(20, 1),    // beats it accepted, and beats it rejected (impact, off the rate)
     accG: new Buf(20, 1),                               // |a| in g on the same grid
+    hrSpec: new Buf(0, 1),                              // bpm from the spectral peak, once a second (HR lab)
+    hrBeats: new Buf(0, 1),                             // bpm from the beat intervals (median), once a second
+    hrBlend: new Buf(0, 1),                             // bpm after blending both and the tracker, before the confidence gate
   };
 }
 
@@ -122,7 +126,7 @@ function mhrFeed(e, data) {
     e.mhr = createMotionHr(S.mhr, layoutFor(e.kind, ppg.ch), {
       onSample: (t, x) => { d.ppgBp.add([t], [x.fused], 1); d.clean.add([t], [x.clean], 1); if (x.accG != null) d.accG.add([t], [x.accG], 1); },
       onBeat: (t, y, ok) => (ok ? d.beats : d.beatsBad).add([t], [y], 1),
-      onEstimate: (r) => { e.mhrLast = r; d.pcConf.add([r.t], [r.conf], 1); if (r.bpm != null) { e.pcHr = { t: r.t, bpm: r.bpm, quality: r.conf }; d.pcHr.add([r.t], [r.bpm], 1); } },
+      onEstimate: (r) => { e.mhrLast = r; d.pcConf.add([r.t], [r.conf], 1); if (r.spec != null) d.hrSpec.add([r.t], [r.spec], 1); if (r.peaks != null) d.hrBeats.add([r.t], [r.peaks], 1); if (r.tracked != null) d.hrBlend.add([r.t], [r.tracked], 1); if (r.bpm != null) { e.pcHr = { t: r.t, bpm: r.bpm, quality: r.conf }; d.pcHr.add([r.t], [r.bpm], 1); } },
     });
   }
   if (!e.mhr) return;
@@ -175,10 +179,12 @@ export function trustOf(e, t = now()) {
   for (const k of sw ? ['ppg', 'ppg_red', 'ppg_ir', 'acc', 'gyro'] : ['ppg', 'acc', 'gyro', 'mag']) {
     const s = e.stats?.[k], cfg = e.streams?.[k];
     if (!s || !cfg?.sampleRate || !s.hz) continue;
-    const off = Math.abs(s.hz - cfg.sampleRate) / cfg.sampleRate, name = k.replace('_', ' ').toUpperCase();
+    // a sensor clock the worker found wrong is timed from arrival (capture-worker arrivalClock): judge the arrival rate
+    const hz = s.clockBad ? s.arrivalHz ?? s.hz : s.hz;
+    const off = Math.abs(hz - cfg.sampleRate) / cfg.sampleRate, name = k.replace('_', ' ').toUpperCase();
     const said = sw ? `SensWear's SDK says ${cfg.sampleRate} Hz` : `${cfg.sampleRate} Hz was set`;
-    if (off > 0.1) issues.push([2, `${name} runs at ${s.hz.toFixed(1)} Hz, ${said}`]);
-    else if (off > 0.03) issues.push([1, `${name} runs at ${s.hz.toFixed(1)} Hz, ${said}`]);
+    if (off > 0.1) issues.push([2, `${name} runs at ${hz.toFixed(1)} Hz, ${said}`]);
+    else if (off > 0.03) issues.push([1, `${name} runs at ${hz.toFixed(1)} Hz, ${said}`]);
     const lost = s.lost / ((s.samples + s.lost) || 1);
     if (lost > 0.03) issues.push([2, `${(lost * 100).toFixed(1)}% of ${k.toUpperCase()} lost`]);
     else if (lost > 0.005) issues.push([1, `${(lost * 100).toFixed(1)}% of ${k.toUpperCase()} lost`]);

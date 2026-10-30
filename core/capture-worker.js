@@ -115,6 +115,7 @@ function manifest() {
         file: st.file ? `${st.file}.csv` : null, requested: d.cfg[k]?.settings ?? null, factor: d.cfg[k]?.factor ?? null,
         frame_types: [...st.frameTypes], samples: st.i, frames: st.frames, bad_frames: st.badFrames,
         lost_samples_est: st.lostSamples, measured_hz: st.hz && round(st.hz, 3), arrival_hz: st.arrivalHz && round(st.arrivalHz, 3),
+        timing: st.clockBad ? 'arrival: sensor time stamps did not match the arrival rate, so t_session_s comes from a clock locked to arrival; t_sensor_ns is raw' : 'sensor',
       }])),
       hr_samples: d.hr.i, battery: d.battery, events: d.events,
     })),
@@ -161,6 +162,7 @@ async function onPmd(d, bytes, rx) {
   const key = KEY[f.measType];
   if (!key) { log('warn', `${d.id}: frame of type ${MEASUREMENT_TYPE_NAME[f.measType] ?? f.measType} ignored`); return; }
   const s = stream(d, key), cfg = d.cfg[key] || {};
+  s.setHz = cfg.sampleRate || null;
   const prev = s.prevTs.get(f.frameType) ?? 0n;
   if (prev !== 0n && f.timestampNs <= prev) s.ooo++;
   s.prevTs.set(f.frameType, f.timestampNs); // as the SDK does: even if decoding fails below
@@ -170,7 +172,7 @@ async function onPmd(d, bytes, rx) {
   const tryDecode = (prevNs) => decodeFrame(bytes, { factor: cfg.factor ?? 1, sampleRateHz: nominal, prevTimestampNs: prevNs });
   try {
     dec = tryDecode(prev);
-    if (prev !== 0n && key !== 'ppi' && nominal) {
+    if (prev !== 0n && key !== 'ppi' && nominal && !s.clockBad) {   // a bad sensor clock cannot show gaps; arrivalClock restarts after 1 s
       const each = Number(f.timestampNs - prev) / 1e9 / dec.count;
       if (each > 1.5 / nominal || each < 0.5 / nominal) {
         dec = tryDecode(0n);
@@ -190,8 +192,10 @@ async function onPmd(d, bytes, rx) {
   if (gap) { s.lostSamples += gap.missing_samples_est; dropouts.push(gap); post({ type: 'gap', id: d.id, stream: key, from: rx - gap.missing_samples_est / nominal, to: rx, missing: gap.missing_samples_est }); log('warn', `${d.id} ${key}: about ${gap.missing_samples_est} samples lost, gap logged`); }
 
   const lastS = Number(dec.timestampNs) / 1e9;
-  const off = offsetFor(d, rx, lastS);
-  delay(s, rx, rx - (lastS + off));
+  // A stream whose sensor clock is wrong (see arrivalClock) must not move the device's offset, or every
+  // other stream's times move with it.
+  const off = s.clockBad ? (d.offset ?? rx - lastS) : offsetFor(d, rx, lastS);
+  if (!s.clockBad) delay(s, rx, rx - (lastS + off));
   if (store) await ensureFile(d, s, dec.channelNames);
   const n = dec.count, ch = dec.channels, first = s.i;
   let text = '';
@@ -206,8 +210,9 @@ async function onPmd(d, bytes, rx) {
     const cut = rx - 60; d.ppi.recent = d.ppi.recent.filter((r) => r[0] >= cut);
   } else {
     const dg = DIGITS[key] ?? 4;
+    const at = s.clockBad ? arrivalClock(s, rx, n, cfg.sampleRate) : null;
     for (let j = 0; j < n; j++) {
-      const ts = dec.sampleTimestampsNs[j], sess = Number(ts) / 1e9 + off;
+      const ts = dec.sampleTimestampsNs[j], sess = at ? at[j] : Number(ts) / 1e9 + off;
       let row = `${s.i++},${sess.toFixed(4)},${ts}`;
       for (let c = 0; c < ch; c++) row += ',' + round(dec.values[j * ch + c], dg);
       text += row + '\n';
@@ -233,6 +238,11 @@ async function framesFile(d) {
 // Sampling rate from the sensor's own timestamps (frames after a gap excluded), and delivered rate
 // from receive times. If they disagree by more than 5 % the decoder or the timing is wrong.
 function rateUpdate(s, dec, prev, gap, rx) {
+  // the sensor clock's rate over every frame, gaps included, for the bad clock check below
+  if (prev !== 0n) {
+    (s.tsWin ||= []).push([rx, dec.count, Number(dec.timestampNs - prev) / 1e9]);
+    while (s.tsWin[0][0] < rx - 10) s.tsWin.shift();
+  }
   if (prev !== 0n && !gap) {
     s.rateWin.push([rx, dec.count, Number(dec.timestampNs - prev) / 1e9]);
     while (s.rateWin.length && s.rateWin[0][0] < rx - 10) s.rateWin.shift();
@@ -250,6 +260,34 @@ function rateUpdate(s, dec, prev, gap, rx) {
     s.rateWarned = true;
     log('warn', `${s.key}: sensor timestamps say ${s.hz.toFixed(2)} Hz but samples arrive at ${s.arrivalHz.toFixed(2)} Hz`);
   }
+  // Verity Sense in Max mode (iPad, 2026-10-29): samples arrive at the set rate (PPG 174.6/s for 176 Hz, ACC 430
+  // for 416, MAG 99 for 100) while its time stamps advance at the Polar mode rates (54.9, 53.9, 20.1 Hz). Timed
+  // by those stamps, each frame's samples overlap the next frame's and the plots scribble. When the sensor clock
+  // is more than 20 % off the arrival rate and arrivals match the set rate, time the stream from arrival instead.
+  const set = s.setHz;
+  let tn = 0, tt = 0; for (const [, c, d] of s.tsWin || []) { tn += c; tt += d; }
+  const tsHz = tt > 1 ? tn / tt : null;
+  if (!s.clockBad && tsHz && s.arrivalHz && set && s.arrWin.length > 20 && Math.abs(s.arrivalHz - tsHz) / s.arrivalHz > 0.2 && Math.abs(s.arrivalHz - set) / set < 0.1) {
+    s.clockBad = true; s.hz = tsHz;
+    log('warn', `${s.key}: sensor time stamps unusable (${tsHz.toFixed(2)} Hz against ${s.arrivalHz.toFixed(2)} Hz arriving, ${set} Hz set); timed from arrival from now on`);
+  }
+}
+
+/**
+ * Session times for one frame of n samples from a clock that runs at the set rate and is pulled gently
+ * towards the receive times (their lower edge, since radio delay only ever adds). Each frame moves the clock
+ * by at most half a sample period, so times always increase; a jump of more than 1 s (link gap) restarts it.
+ */
+function arrivalClock(s, rx, n, rate) {
+  const c = s.arr ||= { end: null, resid: [] }, dt = 1 / rate;
+  let end = c.end == null ? rx : c.end + n * dt;
+  if (Math.abs(rx - end) > 1) { end = rx; c.resid = []; }
+  c.resid.push([rx, rx - end]);
+  while (c.resid.length && c.resid[0][0] < rx - 10) c.resid.shift();
+  let lo = Infinity; for (const [, r] of c.resid) if (r < lo) lo = r;
+  end += Math.max(-dt / 2, Math.min(dt / 2, 0.1 * lo));
+  c.end = end;
+  return Float64Array.from({ length: n }, (_, j) => end - (n - 1 - j) * dt);
 }
 
 async function onHr(d, bytes, rx) {
@@ -369,7 +407,7 @@ function sendDisplay() {
       out[k] = { t, v, ch: s.disp.ch || 1 }; transfer.push(t.buffer, v.buffer);
       s.disp.t = []; s.disp.v = [];
     }
-    const stats = Object.fromEntries(Object.entries(d.streams).map(([k, s]) => [k, { hz: s.hz, arrivalHz: s.arrivalHz, samples: s.i, frames: s.frames, lost: s.lostSamples, bad: s.badFrames, lastRx: s.lastRx, ooo: s.ooo, lat50: s.lat50, lat95: s.lat95 }]));
+    const stats = Object.fromEntries(Object.entries(d.streams).map(([k, s]) => [k, { hz: s.hz, arrivalHz: s.arrivalHz, samples: s.i, frames: s.frames, lost: s.lostSamples, bad: s.badFrames, lastRx: s.lastRx, ooo: s.ooo, lat50: s.lat50, lat95: s.lat95, clockBad: !!s.clockBad }]));
     post({ type: 'display', id: d.id, data: out, stats, hr: d.hr.last, hrRx: d.hr.lastRx, rmssd: rmssd(d), offset: d.offset }, transfer);
   }
 }

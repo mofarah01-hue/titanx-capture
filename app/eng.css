@@ -60,3 +60,12 @@ html.engmode .events{background:var(--panel)}
   .hright{flex-wrap:nowrap}.store .dim{display:none}.store{padding:0 8px}
   .hbtn{padding:0 8px}
 }
+
+/* hr lab algorithms */
+.hrl-show{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.hrl-how{margin:8px 0 0}
+.hrl-how h4{margin:0 0 4px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.hrl-how .hrl-kv th{width:120px;white-space:nowrap}
+.hrl-col .lane-h{flex-wrap:wrap;row-gap:2px}
+.hrl-col .lr{white-space:normal;font-size:11px}
+.hrlab.clean .lane[data-opt]{display:none}

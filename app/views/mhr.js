@@ -16,6 +16,7 @@ const PARAMS = {
   bandpass: [['lo', 'Low corner', 0.2, 1.5, 0.05, 'Hz'], ['hi', 'High corner', 2.5, 6, 0.1, 'Hz']],
   nlms: [['mu', 'Step size µ', 0.005, 1, 0.005, ''], ['taps', 'Taps (25 Hz)', 2, 32, 1, '']],
   notch: [['width', 'Half width', 0.03, 0.3, 0.01, 'Hz'], ['minG', 'Only above', 0.02, 1, 0.01, 'g']],
+  beats: [['tol', 'Rate tolerance', 0.1, 0.6, 0.05, '× HR'], ['minProm', 'Minimum size', 0.2, 1.2, 0.05, '× pulse']],
   estimate: [['spectral', 'Spectral weight', 0, 1, 0.05, ''], ['peaks', 'Beats weight', 0, 1, 0.05, '']],
   tracker: [['maxStep', 'Max change', 2, 30, 1, 'bpm/s'], ['hold', 'Hold', 0, 15, 1, 's']],
   gate: [['min', 'Minimum confidence', 0, 1, 0.05, '']],
