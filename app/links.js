@@ -79,6 +79,7 @@ function start(device, id) {
       const was = e.linkState?.state;
       e.linkState = st; e.mode = st.mode;
       if (st.state === 'streaming' && was !== 'streaming') e.streamingSince = now();
+      if (st.takenBack > (e.takenBack || 0)) { e.takenBack = st.takenBack; toast(`Another phone or app took sensor ${id.slice(-4)}. Taking it back.`); log('warn', `${id} taken back (${st.takenBack})`); }
       if (st.state !== was) { worker.postMessage({ type: 'link', id, state: st.state, rx: now(), error: st.error }); log('link', `${id} ${st.state}${st.error ? ' ' + st.error.code : ''}`); }
       emit('link');
     },

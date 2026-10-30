@@ -94,6 +94,13 @@ class FakeDevice extends EventTarget {
   }
 
   #reset() { this.streams = new Map(); this.sdk = false; this.ppiOnAt = null; this.lastPpiT = null; this.nextHrT = null; }
+  /** Another phone or app starts its own raw stream on this sensor: ours stop while the link stays up.
+   *  notice: also send Polar's stop notice (0x01 + types) on the control point. */
+  takeover(notice = false) {
+    const types = [...this.streams.keys()];
+    this.streams.clear(); this.ppiOnAt = null; this.sdk = false;
+    if (notice) this.c.cp.push(Uint8Array.of(0x01, ...types));
+  }
   #service(u) {
     if (!this.gatt.connected) throw domErr('NetworkError', 'GATT Server is disconnected. Cannot retrieve services.');
     const s = this.services.find((x) => x.uuid === full(u));

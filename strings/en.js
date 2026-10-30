@@ -188,6 +188,7 @@ export default {
     refused: ['The sensor refused a request.', 'Click Retry. The app carries on from the step that failed.'],
     notPolar: ['This is not a Polar Verity Sense.', 'Pick a sensor whose name starts with Polar Sense.'],
     charging: ['The sensor is on its charger.', 'Take it off the charger and click Retry.'],
+    contested: ['Another phone or app keeps taking this sensor.', 'Close the Polar app on the phone, or turn Bluetooth off on the phone, then click Retry. A sensor sends raw data to one app at a time.'],
     mtu: ['This computer cannot carry raw sensor data over its Bluetooth link.', 'Send a debug bundle to Mohammad.'],
     streamRefused: (stream, meaning) => [`The sensor refused to start ${stream} (${meaning}).`, 'Click Retry.'],
     folderLost: ['Saving to the Sa7a folder stopped because Chrome lost permission.', 'Click Allow saving to your Sa7a folder. Recording is safe on this Mac meanwhile.'],

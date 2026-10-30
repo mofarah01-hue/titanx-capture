@@ -64,6 +64,9 @@ function classify(e, step) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const BACKOFF_MS = [0, 500, 1000, 2000, 4000];
+// Another phone or app on the same sensor can start its own raw stream, which stops ours while the link
+// stays up. Silence this long on the raw data while streaming means that, and the link takes the sensor back.
+const SILENT_MS = 3000, TAKEBACKS_PER_MIN = 2; // the third take within a minute gives up and asks for the other app to close
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 const copy = (dv) => new Uint8Array(dv.buffer.slice(dv.byteOffset, dv.byteOffset + dv.byteLength));
 const concat = (a, b) => { const o = new Uint8Array(a.length + b.length); o.set(a); o.set(b, a.length); return o; };
@@ -100,8 +103,11 @@ export class SensorLink {
     this.sdkOn = false;
     this.waiters = [];
     this.more = null;
+    this.lastPmd = 0;
+    this.takebacks = [];            // times of recent take backs, to stop a tug of war
+    this.takenBack = 0;
     this.onCp = (e) => this.#cpNotification(copy(e.target.value));
-    this.onData = (e) => this.onPacket('pmd', copy(e.target.value), performance.now());
+    this.onData = (e) => { this.lastPmd = performance.now(); this.onPacket('pmd', copy(e.target.value), this.lastPmd); };
     this.onHr = (e) => this.onPacket('hr', copy(e.target.value), performance.now());
     this.onBatt = (e) => this.#battery(copy(e.target.value));
     device.addEventListener('gattserverdisconnected', () => this.#dropped());
@@ -126,6 +132,7 @@ export class SensorLink {
       for (; i < names.length; i++) await this.#runStep(names[i]);
       this.state = 'streaming'; this.reconnectAttempt = 0;
       this.#log('ok', 'all streams running');
+      this.#watch();
       this.#emit();
     })().finally(() => { this.running = null; });
     return this.running;
@@ -136,7 +143,7 @@ export class SensorLink {
 
   async disconnect() {
     this.userClosed = true;
-    clearInterval(this.battTimer);
+    clearInterval(this.battTimer); clearInterval(this.watchTimer);
     this.#rejectWaiters(new LinkError('closed', 'closed by user'));
     try { this.device.gatt.disconnect(); } catch { /* already gone */ }
     this.state = 'disconnected';
@@ -263,6 +270,7 @@ export class SensorLink {
     try { r = parseControlPointResponse(bytes); } catch (e) { this.#log('error', e.message); return; }
     if (r.type === 'measurementStopped') {
       this.#log('warn', `sensor stopped streams by itself: ${r.measTypes.join(',')}`);
+      if (this.state === 'streaming') { this.takeBack('the sensor stopped our streams'); return; }
       this.state = 'failed'; this.error = new LinkError('refused', 'The sensor stopped sending data by itself.');
       this.failedAt = 'pmd'; this.#emit();
       return;
@@ -315,7 +323,7 @@ export class SensorLink {
 
   #dropped() {
     this.#log('drop', 'Bluetooth link lost');
-    clearInterval(this.battTimer);
+    clearInterval(this.battTimer); clearInterval(this.watchTimer);
     this.#rejectWaiters(new LinkError('dropped', 'link lost'));
     this.cp = this.data = null; this.streams = {}; this.sdkOn = false; this.more = null;
     this.#resetSteps();
@@ -334,12 +342,43 @@ export class SensorLink {
     }
   }
 
+  /** Another central took the raw streams: stop whatever runs on the sensor and start ours again. */
+  async takeBack(why) {
+    if (this.running || this.state !== 'streaming') return;
+    const t = performance.now();
+    this.takebacks = this.takebacks.filter((x) => t - x < 60000);
+    if (this.takebacks.length >= TAKEBACKS_PER_MIN) { // a tug of war: tell the user instead
+      clearInterval(this.watchTimer);
+      this.#log('error', `taken ${this.takebacks.length} times in a minute, giving up: ${why}`);
+      this.state = 'failed'; this.failedAt = 'pmd';
+      this.error = new LinkError('contested', 'another device keeps taking the sensor');
+      this.#emit();
+      return;
+    }
+    this.takebacks.push(t); this.takenBack++;
+    this.#log('warn', `taking the sensor back: ${why}`);
+    this.state = 'connecting'; this.#emit();
+    for (const type of Object.values(STREAM_TYPES)) await this.#command(buildStop(type), OpCode.STOP, type, 'stop', true).catch(() => {});
+    await this.#command(Uint8Array.of(OpCode.STOP, MT.SDK_MODE), OpCode.STOP, MT.SDK_MODE, 'Max rate mode', true).catch(() => {});
+    this.streams = {}; this.sdkOn = false;
+    this.run('pmd').catch(() => { /* the slot shows the error and a Retry button */ });
+  }
+
+  #watch() {
+    clearInterval(this.watchTimer);
+    this.lastPmd = performance.now();
+    this.watchTimer = setInterval(() => {
+      if (this.state !== 'streaming' || this.running || !this.device.gatt.connected) return;
+      if (performance.now() - this.lastPmd > SILENT_MS) this.takeBack(`no raw data for ${SILENT_MS / 1000} s`);
+    }, 1000);
+  }
+
   #rejectWaiters(err) { for (const w of this.waiters) { clearTimeout(w.timer); w.reject(err); } this.waiters = []; }
   #resetSteps() { this.steps = Object.fromEntries(stepsFor(this.mode).map((n) => [n, { state: 'todo' }])); }
   #log(kind, msg) { this.log.push({ t: Math.round(performance.now()), kind, msg }); if (this.log.length > 800) this.log.splice(0, 200); }
   #emit() {
     this.onState({
-      state: this.state, mode: this.mode, battery: this.batteryPct, reconnectAttempt: this.reconnectAttempt,
+      state: this.state, mode: this.mode, battery: this.batteryPct, reconnectAttempt: this.reconnectAttempt, takenBack: this.takenBack,
       failedAt: this.failedAt, error: this.error && { code: this.error.code, message: this.error.message, stream: this.error.stream, meaning: this.error.meaning },
       steps: stepsFor(this.mode).map((n) => ({ name: n, ...this.steps[n] })),
       streams: { ...this.streams },

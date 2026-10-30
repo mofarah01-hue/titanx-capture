@@ -73,6 +73,7 @@ async function boot() {
   if (S.sim) { radio = S.kind === 'senswear' ? new SimSensWearRadio(S.sim) : new SimRadio(S.sim, { distinct: S.sim >= 8 }); seedSimRegistry(); S.bluetooth = true; }
   else watchBluetooth((on) => { S.bluetooth = on; banners(); });
   simRadio = radio;
+  if (radio) window.__simRadio = radio; // tests and the console reach the simulated sensors
   initLinks(worker, radio);
 
   const f = await folderState();
@@ -176,7 +177,8 @@ function fillTargets() {
 const planCtx = { start: (p) => startPlan(p), next: () => nextPhase(), stop: () => stopPlan() };
 const ctx = {
   runDemo: () => runDemo(),
-  toChecklist: () => (S.session ? go('live') : go('checklist')),
+  toChecklist: () => (S.session ? go('live') : go('home')), // after setup: connect, name or skip, record. No checklist
+  connect: () => connect(null),
   home: () => go('home'),
   startSession: (label) => startSession(label),
   download: (name) => download(name),
@@ -217,7 +219,7 @@ function go(view, arg) {
   else if (view === 'hrlab') lab.mountHrLab(box);
   else if (view === 'mhr') mhrView.mountMhr(box);
   else if (view === 'runs') mountRuns(box, { folder: () => (S.folder.permission === 'granted' ? S.folder.handle : null), config: () => S.mhr, maxHr: (id) => maxHrFor(id), upload: (run) => sendRunToPc(run) });
-  else if (view === 'wizard') wiz.mountWizard(box, { W, save: (w) => kvSet('wizard', w), pickFolder: wizardPick, createListHere, connectTest: () => connect(null), startSession: () => go(S.session ? 'live' : 'checklist') });
+  else if (view === 'wizard') wiz.mountWizard(box, { W, save: (w) => kvSet('wizard', w), pickFolder: wizardPick, createListHere, connectTest: () => connect(null), startSession: () => go(S.session ? 'live' : 'home') });
   else if (view === 'checklist') ses.mountChecklist(box, ctx);
   else if (view === 'end') ses.mountEnd(box, ctx);
   else ses.mountHome(box, ctx);

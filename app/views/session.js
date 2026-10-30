@@ -5,18 +5,20 @@ import { TICK, WARN, TODO, esc, setHTML, $, fmtClock, fmtMB } from '../ui.js';
 
 let root = null, ctx = null, kind = '';
 
-/** ctx: { runDemo(), toChecklist(), startSession(label), download(name), allowSaving(), openSetup() } */
+/** ctx: { runDemo(), toChecklist(), connect(), startSession(label), download(name), allowSaving(), openSetup() } */
 export function mountHome(container, c) {
   root = container; ctx = c; kind = 'home';
   const demo = S.sim > 0;
   root.innerHTML = `<div class="page" style="max-width:760px"><div class="card">
     <span class="eyebrow">TITAN X CAPTURE</span><h2>${demo ? 'Try it with simulated sensors' : 'Ready when you are'}</h2>
-    <p>${demo ? `Run the demo to start a session and connect ${S.sim} simulated sensor${S.sim > 1 ? 's' : ''} in one click. Or go through the real steps: start a session, then connect each sensor from its panel.` : 'Start a session, connect each sensor, and recording starts by itself. Everything is saved to the Sa7a folder and reaches Mohammad through Google Drive.'}</p>
+    <p>${demo ? `Run the demo to start a session and connect ${S.sim} simulated sensor${S.sim > 1 ? 's' : ''} in one click. Or go through the real steps: start a session, then connect each sensor from its panel.` : 'Connect a sensor, say who wears it or skip, and recording starts by itself. Everything is saved to the Sa7a folder and reaches Mohammad through Google Drive.'}</p>
     <ul class="checks" data-k="state"></ul>
-    <div class="foot">${demo ? '<button class="btn primary big" data-demo>Run the demo</button><button class="btn big" data-go>Start a session</button>' : '<button class="btn primary big" data-go>Start a session</button>'}<span class="spacer"></span><button class="btn" data-setup>Setup</button></div>
+    <div class="foot">${demo ? '<button class="btn primary big" data-demo>Run the demo</button><button class="btn big" data-go>Start a session</button>' : '<button class="btn primary big" data-connect>Connect a sensor</button><button class="btn big" data-start>Start without a sensor</button>'}<span class="spacer"></span><button class="btn" data-setup>Setup</button></div>
   </div></div>`;
   root.querySelector('[data-demo]')?.addEventListener('click', () => ctx.runDemo());
-  root.querySelector('[data-go]').addEventListener('click', () => ctx.toChecklist());
+  root.querySelector('[data-go]')?.addEventListener('click', () => ctx.toChecklist());
+  root.querySelector('[data-connect]')?.addEventListener('click', () => ctx.connect());
+  root.querySelector('[data-start]')?.addEventListener('click', () => ctx.startSession('session'));
   root.querySelector('[data-setup]').addEventListener('click', () => ctx.openSetup());
   refreshSession();
 }
